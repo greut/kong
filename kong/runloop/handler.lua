@@ -36,6 +36,7 @@ local exec         = ngx.exec
 local header       = ngx.header
 local timer_at     = ngx.timer.at
 local subsystem    = ngx.config.subsystem
+local set_header   = ngx.req.set_header
 local clear_header = ngx.req.clear_header
 local http_version = ngx.req.http_version
 local unpack       = unpack
@@ -1401,21 +1402,25 @@ return {
         var.upstream_connection = "keep-alive"
       end
 
+      local remote_addr = var.remote_addr
+      ctx.upstream_x_real_ip = remote_addr
+
       -- X-Forwarded-* Headers
+      -- Only store them in ngx.ctx and actually set to upstream header in access.after
+      -- so that plugins that terminates the requests doesn't got those headers
       local http_x_forwarded_for = var.http_x_forwarded_for
       if http_x_forwarded_for then
-        var.upstream_x_forwarded_for = http_x_forwarded_for .. ", " ..
-                                       realip_remote_addr
-
+        ctx.upstream_x_forwarded_for = http_x_forwarded_for .. ", " ..
+                                        realip_remote_addr
       else
-        var.upstream_x_forwarded_for = var.remote_addr
+        ctx.upstream_x_forwarded_for = remote_addr
       end
 
-      var.upstream_x_forwarded_proto  = forwarded_proto
-      var.upstream_x_forwarded_host   = forwarded_host
-      var.upstream_x_forwarded_port   = forwarded_port
-      var.upstream_x_forwarded_path   = forwarded_path
-      var.upstream_x_forwarded_prefix = forwarded_prefix
+      ctx.upstream_x_forwarded_proto = forwarded_proto
+      ctx.upstream_x_forwarded_host = forwarded_host
+      ctx.upstream_x_forwarded_port = forwarded_port
+      ctx.upstream_x_forwarded_path = forwarded_path
+      ctx.upstream_x_forwarded_prefix = forwarded_prefix
 
       -- At this point, the router and `balancer_setup_stage1` have been
       -- executed; detect requests that need to be redirected from `proxy_pass`
@@ -1493,6 +1498,27 @@ return {
         return exit(500)
       end
 
+      -- the nginx grpc module does not offer a way to override the
+      -- :authority pseudo-header; use our internal API to do so
+      local upstream_host = var.upstream_host
+      local upstream_scheme = var.upstream_scheme
+
+      if upstream_scheme == "grpc" or upstream_scheme == "grpcs" then
+        ok, err = kong.service.request.set_header(":authority", upstream_host)
+        if not ok then
+          log(ERR, "failed to set :authority header: ", err)
+        end
+      end
+
+      set_header("x-real-ip", ctx.upstream_x_real_ip)
+
+      set_header("x-forwarded-for", ctx.upstream_x_forwarded_for)
+      set_header("x-forwarded-proto", ctx.upstream_x_forwarded_proto)
+      set_header("x-forwarded-host", ctx.upstream_x_forwarded_host)
+      set_header("x-forwarded-port", ctx.upstream_x_forwarded_port)
+      set_header("x-forwarded-path", ctx.upstream_x_forwarded_path)
+      set_header("x-forwarded-prefix", ctx.upstream_x_forwarded_prefix)
+
       -- clear hop-by-hop request headers:
       local http_connection = var.http_connection
       if http_connection ~= "keep-alive" and
@@ -1518,12 +1544,14 @@ return {
       local http_te = var.http_te
       if http_te then
         if http_te == "trailers" then
-          var.upstream_te = "trailers"
+          var.upstream_te = "trailers" -- for setting headers in upstream
+          ctx.upstream_te = "trailers" -- for read back in header_filter.before
 
         else
           for _, header_name in csv(http_te) do
             if header_name == "trailers" then
-              var.upstream_te = "trailers"
+              var.upstream_te = "trailers" -- for setting headers in upstream
+              ctx.upstream_te = "trailers" -- for read back in header_filter.before
               break
             end
           end
@@ -1568,7 +1596,7 @@ return {
       end
 
       -- remove trailer response header when client didn't ask for them
-      if var.upstream_te == "" and var.upstream_http_trailer then
+      if not ctx.upstream_te and var.upstream_http_trailer then
         header["Trailer"] = nil
       end
 
