@@ -1,8 +1,14 @@
-local Router = require "kong.router"
+local Router
 local path_handling_tests = require "spec.fixtures.router_path_handling_tests"
 local uuid = require("kong.tools.utils").uuid
 
-local function reload_router()
+local function reload_router(flavor)
+  _G.kong = {
+    configuration = {
+      router_flavor = flavor,
+    },
+  }
+
   package.loaded["kong.router"] = nil
   Router = require "kong.router"
 end
@@ -23,201 +29,9 @@ local service = {
     end
   }
 
-local use_case = {
-
-  -- 1. host
-  {
-    service = service,
-    route   = {
-      hosts = {
-        "domain-1.org",
-        "domain-2.org"
-      },
-    },
-  },
-  -- 2. method
-  {
-    service = service,
-    route   = {
-      methods = {
-        "TRACE"
-      },
-    }
-  },
-  -- 3. uri
-  {
-    service = service,
-    route   = {
-      paths = {
-        "/my-route"
-      },
-    }
-  },
-  -- 4. host + uri
-  {
-    service = service,
-    route   = {
-      paths = {
-        "/route-4"
-      },
-      hosts = {
-        "domain-1.org",
-        "domain-2.org"
-      },
-    },
-  },
-  -- 5. host + method
-  {
-    service = service,
-    route   = {
-      hosts = {
-        "domain-1.org",
-        "domain-2.org"
-      },
-      methods = {
-        "POST",
-        "PUT",
-        "PATCH"
-      },
-    },
-  },
-  -- 6. uri + method
-  {
-    service = service,
-    route   = {
-      methods = {
-        "POST",
-        "PUT",
-        "PATCH",
-      },
-      paths   = {
-        "/route-6"
-      },
-    }
-  },
-  -- 7. host + uri + method
-  {
-    service = service,
-    route   = {
-      hosts = {
-        "domain-with-uri-1.org",
-        "domain-with-uri-2.org"
-      },
-      methods = {
-        "POST",
-        "PUT",
-        "PATCH",
-      },
-      paths   = {
-        "/my-route-uri"
-      },
-    },
-  },
-  -- 8. serviceless-route
-  {
-    route   = {
-      paths = {
-        "/serviceless"
-      },
-    }
-  },
-  -- 9. headers (single)
-  {
-    service = service,
-    route = {
-      headers = {
-        location = {
-          "my-location-1",
-          "my-location-2",
-        },
-      },
-    },
-  },
-  -- 10. headers (multiple)
-  {
-    service = service,
-    route = {
-      headers = {
-        location = {
-          "my-location-1",
-        },
-        version = {
-          "v1",
-          "v2",
-        },
-      },
-    },
-  },
-  -- 11. headers + uri
-  {
-    service = service,
-    route   = {
-      headers = {
-        location = {
-          "my-location-1",
-          "my-location-2",
-        },
-      },
-      paths = {
-        "/headers-uri"
-      },
-    },
-  },
-  -- 12. host + headers + uri + method
-  {
-    service = service,
-    route   = {
-      hosts = {
-        "domain-with-headers-1.org",
-        "domain-with-headers-2.org"
-      },
-      headers = {
-        location = {
-          "my-location-1",
-          "my-location-2",
-        },
-      },
-      methods = {
-        "POST",
-        "PUT",
-        "PATCH",
-      },
-      paths   = {
-        "/headers-host-uri-method"
-      },
-    },
-  },
-  -- 13. host + port
-  {
-    service = service,
-    route   = {
-      hosts = {
-        "domain-1.org:321",
-        "domain-2.org"
-      },
-    },
-  },
-  -- 14. no "any-port" route
-  {
-    service = service,
-    route   = {
-      hosts = {
-        "domain-3.org:321",
-      },
-    },
-  },
-  -- 15. headers (regex)
-  {
-    service = service,
-    route = {
-      headers = {
-        user_agent = {
-          "~*windows|linux|os\\s+x\\s*[\\d\\._]+|solaris|bsd",
-        },
-      },
-    },
-  },
-}
+reload_router("traditional_compatible")
+flavor = "traditional_compatible"
+local it_trad_only = (flavor == "traditional") and it or pending
 
 describe("Router", function()
   describe("split_port()", function()
@@ -280,22 +94,239 @@ describe("Router", function()
   end)
 
   describe("select()", function()
-    local router = assert(Router.new(use_case))
+    local use_case, router
+
+    lazy_setup(function()
+      use_case = {
+
+        -- 1. host
+        {
+          service = service,
+          route   = {
+            id = "e8fb37f1-102d-461e-9c51-6608a6bb8101",
+            hosts = {
+              "domain-1.org",
+              "domain-2.org"
+            },
+          },
+        },
+        -- 2. method
+        {
+          service = service,
+          route   = {
+            id = "e8fb37f1-102d-461e-9c51-6608a6bb8102",
+            methods = {
+              "TRACE"
+            },
+          }
+        },
+        -- 3. uri
+        {
+          service = service,
+          route   = {
+            id = "e8fb37f1-102d-461e-9c51-6608a6bb8103",
+            paths = {
+              "/my-route"
+            },
+          }
+        },
+        -- 4. host + uri
+        {
+          service = service,
+          route   = {
+            id = "e8fb37f1-102d-461e-9c51-6608a6bb8104",
+            paths = {
+              "/route-4"
+            },
+            hosts = {
+              "domain-1.org",
+              "domain-2.org"
+            },
+          },
+        },
+        -- 5. host + method
+        {
+          service = service,
+          route   = {
+            id = "e8fb37f1-102d-461e-9c51-6608a6bb8105",
+            hosts = {
+              "domain-1.org",
+              "domain-2.org"
+            },
+            methods = {
+              "POST",
+              "PUT",
+              "PATCH"
+            },
+          },
+        },
+        -- 6. uri + method
+        {
+          service = service,
+          route   = {
+            id = "e8fb37f1-102d-461e-9c51-6608a6bb8106",
+            methods = {
+              "POST",
+              "PUT",
+              "PATCH",
+            },
+            paths   = {
+              "/route-6"
+            },
+          }
+        },
+        -- 7. host + uri + method
+        {
+          service = service,
+          route   = {
+            id = "e8fb37f1-102d-461e-9c51-6608a6bb8107",
+            hosts = {
+              "domain-with-uri-1.org",
+              "domain-with-uri-2.org"
+            },
+            methods = {
+              "POST",
+              "PUT",
+              "PATCH",
+            },
+            paths   = {
+              "/my-route-uri"
+            },
+          },
+        },
+        -- 8. serviceless-route
+        {
+          route   = {
+            id = "e8fb37f1-102d-461e-9c51-6608a6bb8108",
+            paths = {
+              "/serviceless"
+            },
+          }
+        },
+        -- 9. headers (single)
+        {
+          service = service,
+          route = {
+            id = "e8fb37f1-102d-461e-9c51-6608a6bb8109",
+            headers = {
+              location = {
+                "my-location-1",
+                "my-location-2",
+              },
+            },
+          },
+        },
+        -- 10. headers (multiple)
+        {
+          service = service,
+          route = {
+            id = "e8fb37f1-102d-461e-9c51-6608a6bb8110",
+            headers = {
+              location = {
+                "my-location-1",
+              },
+              version = {
+                "v1",
+                "v2",
+              },
+            },
+          },
+        },
+        -- 11. headers + uri
+        {
+          service = service,
+          route   = {
+            id = "e8fb37f1-102d-461e-9c51-6608a6bb8111",
+            headers = {
+              location = {
+                "my-location-1",
+                "my-location-2",
+              },
+            },
+            paths = {
+              "/headers-uri"
+            },
+          },
+        },
+        -- 12. host + headers + uri + method
+        {
+          service = service,
+          route   = {
+            id = "e8fb37f1-102d-461e-9c51-6608a6bb8112",
+            hosts = {
+              "domain-with-headers-1.org",
+              "domain-with-headers-2.org"
+            },
+            headers = {
+              location = {
+                "my-location-1",
+                "my-location-2",
+              },
+            },
+            methods = {
+              "POST",
+              "PUT",
+              "PATCH",
+            },
+            paths   = {
+              "/headers-host-uri-method"
+            },
+          },
+        },
+        -- 13. host + port
+        {
+          service = service,
+          route   = {
+            id = "e8fb37f1-102d-461e-9c51-6608a6bb8113",
+            hosts = {
+              "domain-1.org:321",
+              "domain-2.org"
+            },
+          },
+        },
+        -- 14. no "any-port" route
+        {
+          service = service,
+          route   = {
+            id = "e8fb37f1-102d-461e-9c51-6608a6bb8114",
+            hosts = {
+              "domain-3.org:321",
+            },
+          },
+        },
+        -- 15. headers (regex)
+        {
+          service = service,
+          route = {
+            id = "e8fb37f1-102d-461e-9c51-6608a6bb8115",
+            headers = {
+              user_agent = {
+                "~*windows|linux|os\\s+x\\s*[\\d\\._]+|solaris|bsd",
+              },
+            },
+          },
+        },
+      }
+      router = assert(Router.new(use_case))
+    end)
+
 
     it("[host]", function()
       -- host
-      local match_t = router.select("GET", "/", "domain-1.org")
+      local match_t = router:select("GET", "/", "domain-1.org")
       assert.truthy(match_t)
       assert.same(use_case[1].route, match_t.route)
-      assert.same(use_case[1].route.hosts[1], match_t.matches.host)
+      if flavor == "traditional" then
+        assert.same(use_case[1].route.hosts[1], match_t.matches.host)
+      end
       assert.same(nil, match_t.matches.method)
       assert.same(nil, match_t.matches.uri)
       assert.same(nil, match_t.matches.uri_captures)
     end)
 
-    it("[host] ignores default port", function()
+    it_trad_only("[host] ignores default port", function()
       -- host
-      local match_t = router.select("GET", "/", "domain-1.org:80")
+      local match_t = router:select("GET", "/", "domain-1.org:80")
       assert.truthy(match_t)
       assert.same(use_case[1].route, match_t.route)
       assert.same(use_case[1].route.hosts[1], match_t.matches.host)
@@ -304,8 +335,8 @@ describe("Router", function()
       assert.same(nil, match_t.matches.uri_captures)
     end)
 
-    it("[host] weird port matches no-port route", function()
-      local match_t = router.select("GET", "/", "domain-1.org:123")
+    it_trad_only("[host] weird port matches no-port route", function()
+      local match_t = router:select("GET", "/", "domain-1.org:123")
       assert.truthy(match_t)
       assert.same(use_case[1].route, match_t.route)
       assert.same(use_case[1].route.hosts[1], match_t.matches.host)
@@ -314,9 +345,9 @@ describe("Router", function()
       assert.same(nil, match_t.matches.uri_captures)
     end)
 
-    it("[host] matches specific port", function()
+    it_trad_only("[host] matches specific port", function()
       -- host
-      local match_t = router.select("GET", "/", "domain-1.org:321")
+      local match_t = router:select("GET", "/", "domain-1.org:321")
       assert.truthy(match_t)
       assert.same(use_case[13].route, match_t.route)
       assert.same(use_case[13].route.hosts[1], match_t.matches.host)
@@ -325,9 +356,9 @@ describe("Router", function()
       assert.same(nil, match_t.matches.uri_captures)
     end)
 
-    it("[host] matches specific port on port-only route", function()
+    it_trad_only("[host] matches specific port on port-only route", function()
       -- host
-      local match_t = router.select("GET", "/", "domain-3.org:321")
+      local match_t = router:select("GET", "/", "domain-3.org:321")
       assert.truthy(match_t)
       assert.same(use_case[14].route, match_t.route)
       assert.same(use_case[14].route.hosts[1], match_t.matches.host)
@@ -336,94 +367,110 @@ describe("Router", function()
       assert.same(nil, match_t.matches.uri_captures)
     end)
 
-    it("[host] fails just because of port on port-only route", function()
+    it_trad_only("[host] fails just because of port on port-only route", function()
       -- host
-      local match_t = router.select("GET", "/", "domain-3.org:123")
+      local match_t = router:select("GET", "/", "domain-3.org:123")
       assert.falsy(match_t)
     end)
 
     it("[uri]", function()
       -- uri
-      local match_t = router.select("GET", "/my-route", "domain.org")
+      local match_t = router:select("GET", "/my-route", "domain.org")
       assert.truthy(match_t)
       assert.same(use_case[3].route, match_t.route)
       assert.same(nil, match_t.matches.host)
       assert.same(nil, match_t.matches.method)
-      assert.same(use_case[3].route.paths[1], match_t.matches.uri)
+      if flavor == "traditional" then
+        assert.same(use_case[3].route.paths[1], match_t.matches.uri)
+      end
       assert.same(nil, match_t.matches.uri_captures)
     end)
 
     it("[uri + empty host]", function()
       -- uri only (no Host)
       -- Supported for HTTP/1.0 requests without a Host header
-      local match_t = router.select("GET", "/my-route-uri", "")
+      local match_t = router:select("GET", "/my-route-uri", "")
       assert.truthy(match_t)
       assert.same(use_case[3].route, match_t.route)
       assert.same(nil, match_t.matches.host)
       assert.same(nil, match_t.matches.method)
-      assert.same(use_case[3].route.paths[1], match_t.matches.uri)
+      if flavor == "traditional" then
+        assert.same(use_case[3].route.paths[1], match_t.matches.uri)
+      end
       assert.same(nil, match_t.matches.uri_captures)
     end)
 
     it("[method]", function()
       -- method
-      local match_t = router.select("TRACE", "/", "domain.org")
+      local match_t = router:select("TRACE", "/", "domain.org")
       assert.truthy(match_t)
       assert.same(use_case[2].route, match_t.route)
       assert.same(nil, match_t.matches.host)
-      assert.same(use_case[2].route.methods[1], match_t.matches.method)
+      if flavor == "traditional" then
+        assert.same(use_case[2].route.methods[1], match_t.matches.method)
+      end
       assert.same(nil, match_t.matches.uri)
       assert.same(nil, match_t.matches.uri_captures)
     end)
 
     it("[host + uri]", function()
       -- host + uri
-      local match_t = router.select("GET", "/route-4", "domain-1.org")
+      local match_t = router:select("GET", "/route-4", "domain-1.org")
       assert.truthy(match_t)
       assert.same(use_case[4].route, match_t.route)
-      assert.same(use_case[4].route.hosts[1], match_t.matches.host)
+      if flavor == "traditional" then
+        assert.same(use_case[4].route.hosts[1], match_t.matches.host)
+      end
       assert.same(nil, match_t.matches.method)
-      assert.same(use_case[4].route.paths[1], match_t.matches.uri)
+      if flavor == "traditional" then
+        assert.same(use_case[4].route.paths[1], match_t.matches.uri)
+      end
       assert.same(nil, match_t.matches.uri_captures)
     end)
 
     it("[host + method]", function()
       -- host + method
-      local match_t = router.select("POST", "/", "domain-1.org")
+      local match_t = router:select("POST", "/", "domain-1.org")
       assert.truthy(match_t)
       assert.same(use_case[5].route, match_t.route)
-      assert.same(use_case[5].route.hosts[1], match_t.matches.host)
-      assert.same(use_case[5].route.methods[1], match_t.matches.method)
+      if flavor == "traditional" then
+        assert.same(use_case[5].route.hosts[1], match_t.matches.host)
+        assert.same(use_case[5].route.methods[1], match_t.matches.method)
+      end
       assert.same(nil, match_t.matches.uri)
       assert.same(nil, match_t.matches.uri_captures)
     end)
 
     it("[uri + method]", function()
       -- uri + method
-      local match_t = router.select("PUT", "/route-6", "domain.org")
+      local match_t = router:select("PUT", "/route-6", "domain.org")
       assert.truthy(match_t)
       assert.same(use_case[6].route, match_t.route)
       assert.same(nil, match_t.matches.host)
-      assert.same(use_case[6].route.methods[2], match_t.matches.method)
-      assert.same(use_case[6].route.paths[1], match_t.matches.uri)
+      if flavor == "traditional" then
+        assert.same(use_case[6].route.methods[2], match_t.matches.method)
+        assert.same(use_case[6].route.paths[1], match_t.matches.uri)
+      end
       assert.same(nil, match_t.matches.uri_captures)
     end)
 
     it("[host + uri + method]", function()
       -- uri + method
-      local match_t = router.select("PUT", "/my-route-uri",
+      local match_t = router:select("PUT", "/my-route-uri",
                                     "domain-with-uri-2.org")
       assert.truthy(match_t)
       assert.same(use_case[7].route, match_t.route)
-      assert.same(use_case[7].route.hosts[2], match_t.matches.host)
-      assert.same(use_case[7].route.methods[2], match_t.matches.method)
-      assert.same(use_case[7].route.paths[1], match_t.matches.uri)
+      if flavor == "traditional" then
+        assert.same(use_case[7].route.hosts[2], match_t.matches.host)
+        assert.same(use_case[7].route.methods[2], match_t.matches.method)
+        assert.same(use_case[7].route.paths[1], match_t.matches.uri)
+      end
       assert.same(nil, match_t.matches.uri_captures)
     end)
 
     it("single [headers] value", function()
       -- headers (single)
-      local match_t = router.select("GET", "/", nil, "http", nil, nil, nil, nil, nil, {
+      local match_t = router:select("GET", "/", nil, "http", nil, nil, nil, nil, nil, {
         location = "my-location-1"
       })
       assert.truthy(match_t)
@@ -431,9 +478,11 @@ describe("Router", function()
       assert.same(nil, match_t.matches.method)
       assert.same(nil, match_t.matches.uri)
       assert.same(nil, match_t.matches.uri_captures)
-      assert.same({ location = "my-location-1" }, match_t.matches.headers)
+      if flavor == "traditional" then
+        assert.same({ location = "my-location-1" }, match_t.matches.headers)
+      end
 
-      local match_t = router.select("GET", "/", nil, "http", nil, nil, nil, nil, nil, {
+      local match_t = router:select("GET", "/", nil, "http", nil, nil, nil, nil, nil, {
         location = "my-location-2"
       })
       assert.truthy(match_t)
@@ -441,29 +490,35 @@ describe("Router", function()
       assert.same(nil, match_t.matches.method)
       assert.same(nil, match_t.matches.uri)
       assert.same(nil, match_t.matches.uri_captures)
-      assert.same({ location = "my-location-2" }, match_t.matches.headers)
+      if flavor == "traditional" then
+        assert.same({ location = "my-location-2" }, match_t.matches.headers)
+      end
 
-      local match_t = router.select("GET", "/", nil, "http", nil, nil, nil, nil, nil, {
-        location = { "my-location-3", "my-location-2" }
-      })
-      assert.truthy(match_t)
-      assert.same(use_case[9].route, match_t.route)
-      assert.same(nil, match_t.matches.method)
-      assert.same(nil, match_t.matches.uri)
-      assert.same(nil, match_t.matches.uri_captures)
-      assert.same({ location = "my-location-2" }, match_t.matches.headers)
+      if flavor == "traditional" then
+        local match_t = router:select("GET", "/", nil, "http", nil, nil, nil, nil, nil, {
+          location = { "my-location-3", "my-location-2" }
+        })
+        assert.truthy(match_t)
+        assert.same(use_case[9].route, match_t.route)
+        assert.same(nil, match_t.matches.method)
+        assert.same(nil, match_t.matches.uri)
+        assert.same(nil, match_t.matches.uri_captures)
+        assert.same({ location = "my-location-2" }, match_t.matches.headers)
+      end
 
-      local match_t = router.select("GET", "/", nil, "http", nil, nil, nil, nil, nil, {
+      local match_t = router:select("GET", "/", nil, "http", nil, nil, nil, nil, nil, {
         location = "my-location-3"
       })
       assert.is_nil(match_t)
 
-      local match_t = router.select("GET", "/", nil, "http", nil, nil, nil, nil, nil, {
-        location = { "my-location-3", "foo" }
-      })
-      assert.is_nil(match_t)
+      if flavor == "traditional" then
+        local match_t = router:select("GET", "/", nil, "http", nil, nil, nil, nil, nil, {
+          location = { "my-location-3", "foo" }
+        })
+        assert.is_nil(match_t)
+      end
 
-      local match_t = router.select("GET", "/", nil, "http", nil, nil, nil, nil, nil, {
+      local match_t = router:select("GET", "/", nil, "http", nil, nil, nil, nil, nil, {
         user_agent = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.116 Safari/537.36"
       })
       assert.truthy(match_t)
@@ -471,12 +526,14 @@ describe("Router", function()
       assert.same(nil, match_t.matches.method)
       assert.same(nil, match_t.matches.uri)
       assert.same(nil, match_t.matches.uri_captures)
-      assert.same({ user_agent = "mozilla/5.0 (x11; linux x86_64) applewebkit/537.36 (khtml, like gecko) chrome/83.0.4103.116 safari/537.36" }, match_t.matches.headers)
+      if flavor == "traditional" then
+        assert.same({ user_agent = "mozilla/5.0 (x11; linux x86_64) applewebkit/537.36 (khtml, like gecko) chrome/83.0.4103.116 safari/537.36" }, match_t.matches.headers)
+      end
     end)
 
     it("multiple [headers] values", function()
       -- headers (multiple)
-      local match_t = router.select("GET", "/", nil, "http", nil, nil, nil, nil, nil, {
+      local match_t = router:select("GET", "/", nil, "http", nil, nil, nil, nil, nil, {
         location = "my-location-1",
         version = "v1",
       })
@@ -485,10 +542,12 @@ describe("Router", function()
       assert.same(nil, match_t.matches.method)
       assert.same(nil, match_t.matches.uri)
       assert.same(nil, match_t.matches.uri_captures)
-      assert.same({ location = "my-location-1", version = "v1", },
-                  match_t.matches.headers)
+      if flavor == "traditional" then
+        assert.same({ location = "my-location-1", version = "v1", },
+                      match_t.matches.headers)
+      end
 
-      local match_t = router.select("GET", "/", nil, "http", nil, nil, nil, nil, nil, {
+      local match_t = router:select("GET", "/", nil, "http", nil, nil, nil, nil, nil, {
         location = "my-location-1",
         version = "v2",
       })
@@ -497,156 +556,180 @@ describe("Router", function()
       assert.same(nil, match_t.matches.method)
       assert.same(nil, match_t.matches.uri)
       assert.same(nil, match_t.matches.uri_captures)
-      assert.same({ location = "my-location-1", version = "v2", },
-                  match_t.matches.headers)
+      if flavor == "traditional" then
+        assert.same({ location = "my-location-1", version = "v2", },
+                      match_t.matches.headers)
+      end
 
-      local match_t = router.select("GET", "/", nil, "http", nil, nil, nil, nil, nil, {
-        location = { "my-location-3", "my-location-1" },
-        version = "v2",
-      })
-      assert.truthy(match_t)
-      assert.same(use_case[10].route, match_t.route)
-      assert.same(nil, match_t.matches.method)
-      assert.same(nil, match_t.matches.uri)
-      assert.same(nil, match_t.matches.uri_captures)
-      assert.same({ location = "my-location-1", version = "v2", },
-                  match_t.matches.headers)
+      if flavor == "traditional" then
+        local match_t = router:select("GET", "/", nil, "http", nil, nil, nil, nil, nil, {
+          location = { "my-location-3", "my-location-1" },
+          version = "v2",
+        })
+        assert.truthy(match_t)
+        assert.same(use_case[10].route, match_t.route)
+        assert.same(nil, match_t.matches.method)
+        assert.same(nil, match_t.matches.uri)
+        assert.same(nil, match_t.matches.uri_captures)
+        assert.same({ location = "my-location-1", version = "v2", },
+                      match_t.matches.headers)
+      end
 
-      local match_t = router.select("GET", "/", nil, "http", nil, nil, nil, nil, nil, {
-        location = { "my-location-3", "my-location-2" },
-        version = "v2",
-      })
-      -- fallback to Route 9
-      assert.truthy(match_t)
-      assert.same(use_case[9].route, match_t.route)
-      assert.same(nil, match_t.matches.method)
-      assert.same(nil, match_t.matches.uri)
-      assert.same(nil, match_t.matches.uri_captures)
-      assert.same({ location = "my-location-2" }, match_t.matches.headers)
+      if flavor == "traditional" then
+        local match_t = router:select("GET", "/", nil, "http", nil, nil, nil, nil, nil, {
+          location = { "my-location-3", "my-location-2" },
+          version = "v2",
+        })
+        -- fallback to Route 9
+        assert.truthy(match_t)
+        assert.same(use_case[9].route, match_t.route)
+        assert.same(nil, match_t.matches.method)
+        assert.same(nil, match_t.matches.uri)
+        assert.same(nil, match_t.matches.uri_captures)
+        assert.same({ location = "my-location-2" }, match_t.matches.headers)
+      end
     end)
 
     it("[headers + uri]", function()
       -- headers + uri
-      local match_t = router.select("GET", "/headers-uri", nil, "http", nil, nil, nil,
+      local match_t = router:select("GET", "/headers-uri", nil, "http", nil, nil, nil,
                                     nil, nil, { location = "my-location-2" })
       assert.truthy(match_t)
       assert.same(use_case[11].route, match_t.route)
       assert.same(nil, match_t.matches.method)
-      assert.same(use_case[11].route.paths[1], match_t.matches.uri)
+      if flavor == "traditional" then
+        assert.same(use_case[11].route.paths[1], match_t.matches.uri)
+      end
       assert.same(nil, match_t.matches.uri_captures)
-      assert.same({ location = "my-location-2" }, match_t.matches.headers)
+      if flavor == "traditional" then
+        assert.same({ location = "my-location-2" }, match_t.matches.headers)
+      end
     end)
 
     it("[host + headers + uri + method]", function()
       -- host + headers + uri + method
-      local match_t = router.select("PUT", "/headers-host-uri-method",
+      local match_t = router:select("PUT", "/headers-host-uri-method",
                                     "domain-with-headers-1.org", "http",
                                     nil, nil, nil, nil, nil, {
                                       location = "my-location-2",
                                     })
       assert.truthy(match_t)
       assert.same(use_case[12].route, match_t.route)
-      assert.same(use_case[12].route.hosts[1], match_t.matches.host)
-      assert.same(use_case[12].route.methods[2], match_t.matches.method)
-      assert.same(use_case[12].route.paths[1], match_t.matches.uri)
+      if flavor == "traditional" then
+        assert.same(use_case[12].route.hosts[1], match_t.matches.host)
+        assert.same(use_case[12].route.methods[2], match_t.matches.method)
+        assert.same(use_case[12].route.paths[1], match_t.matches.uri)
+      end
       assert.same(nil, match_t.matches.uri_captures)
-      assert.same(use_case[12].route.headers.location[2],
-                  match_t.matches.headers.location)
+      if flavor == "traditional" then
+        assert.same(use_case[12].route.headers.location[2],
+                    match_t.matches.headers.location)
+      end
     end)
 
     it("[serviceless]", function()
-      local match_t = router.select("GET", "/serviceless")
+      local match_t = router:select("GET", "/serviceless")
       assert.truthy(match_t)
       assert.is_nil(match_t.service)
       assert.is_nil(match_t.matches.uri_captures)
       assert.same(use_case[8].route, match_t.route)
-      assert.same(use_case[8].route.paths[1], match_t.matches.uri)
+      if flavor == "traditional" then
+        assert.same(use_case[8].route.paths[1], match_t.matches.uri)
+      end
     end)
 
-    describe("[IPv6 literal host]", function()
-      local use_case = {
-        -- 1: no port, with and without brackets, unique IPs
-        {
-          service = service,
-          route = {
-            hosts = { "::11", "[::12]" },
-          },
-        },
+    if flavor == "traditional" then
+      describe("[IPv6 literal host]", function()
+        local use_case, router
 
-        -- 2: no port, with and without brackets, same hosts as 4
-        {
-          service = service,
-          route = {
-            hosts = { "::21", "[::22]" },
-          },
-        },
+        lazy_setup(function()
+          local use_case = {
+            -- 1: no port, with and without brackets, unique IPs
+            {
+              service = service,
+              route = {
+                hosts = { "::11", "[::12]" },
+              },
+            },
 
-        -- 3: unique IPs, with port
-        {
-          service = service,
-          route = {
-            hosts = { "[::31]:321", "[::32]:321" },
-          },
-        },
+            -- 2: no port, with and without brackets, same hosts as 4
+            {
+              service = service,
+              route = {
+                hosts = { "::21", "[::22]" },
+              },
+            },
 
-        -- 4: same hosts as 2, with port, needs brackets
-        {
-          service = service,
-          route = {
-            hosts = { "[::21]:321", "[::22]:321" },
-          },
-        },
-      }
-      local router = assert(Router.new(use_case))
+            -- 3: unique IPs, with port
+            {
+              service = service,
+              route = {
+                hosts = { "[::31]:321", "[::32]:321" },
+              },
+            },
 
-      describe("no-port route is any-port", function()
-        describe("no-port request", function()
-          it("plain match", function()
-            local match_t = assert(router.select("GET", "/", "::11"))
+            -- 4: same hosts as 2, with port, needs brackets
+            {
+              service = service,
+              route = {
+                hosts = { "[::21]:321", "[::22]:321" },
+              },
+            },
+          }
+          router = assert(Router.new(use_case))
+        end)
+
+        describe("no-port route is any-port", function()
+          describe("no-port request", function()
+            it("plain match", function()
+              local match_t = assert(router:select("GET", "/", "::11"))
+              assert.same(use_case[1].route, match_t.route)
+            end)
+            it("with brackets", function()
+              local match_t = assert(router:select("GET", "/", "[::11]"))
+              assert.same(use_case[1].route, match_t.route)
+            end)
+          end)
+
+          it("explicit port still matches", function()
+            local match_t = assert(router:select("GET", "/", "[::11]:654"))
             assert.same(use_case[1].route, match_t.route)
           end)
-          it("with brackets", function()
-            local match_t = assert(router.select("GET", "/", "[::11]"))
-            assert.same(use_case[1].route, match_t.route)
+        end)
+
+        describe("port-specific route", function()
+          it("matches by port", function()
+            local match_t = assert(router:select("GET", "/", "[::21]:321"))
+            assert.same(use_case[4].route, match_t.route)
+
+            local match_t = assert(router:select("GET", "/", "[::31]:321"))
+            assert.same(use_case[3].route, match_t.route)
+          end)
+
+          it("matches other ports to any-port fallback", function()
+            local match_t = assert(router:select("GET", "/", "[::21]:654"))
+            assert.same(use_case[2].route, match_t.route)
+          end)
+
+          it("fails if there's no any-port route", function()
+            local match_t = router:select("GET", "/", "[::31]:654")
+            assert.falsy(match_t)
           end)
         end)
-
-        it("explicit port still matches", function()
-          local match_t = assert(router.select("GET", "/", "[::11]:654"))
-          assert.same(use_case[1].route, match_t.route)
-        end)
       end)
-
-      describe("port-specific route", function()
-        it("matches by port", function()
-          local match_t = assert(router.select("GET", "/", "[::21]:321"))
-          assert.same(use_case[4].route, match_t.route)
-
-          local match_t = assert(router.select("GET", "/", "[::31]:321"))
-          assert.same(use_case[3].route, match_t.route)
-        end)
-
-        it("matches other ports to any-port fallback", function()
-          local match_t = assert(router.select("GET", "/", "[::21]:654"))
-          assert.same(use_case[2].route, match_t.route)
-        end)
-
-        it("fails if there's no any-port route", function()
-          local match_t = router.select("GET", "/", "[::31]:654")
-          assert.falsy(match_t)
-        end)
-      end)
-    end)
+    end
 
     describe("[uri prefix]", function()
       it("matches when given [uri] is in request URI prefix", function()
         -- uri prefix
-        local match_t = router.select("GET", "/my-route/some/path", "domain.org")
+        local match_t = router:select("GET", "/my-route/some/path", "domain.org")
         assert.truthy(match_t)
         assert.same(use_case[3].route, match_t.route)
         assert.same(nil, match_t.matches.host)
         assert.same(nil, match_t.matches.method)
-        assert.same(use_case[3].route.paths[1], match_t.matches.uri)
+        if flavor == "traditional" then
+          assert.same(use_case[3].route.paths[1], match_t.matches.uri)
+        end
         assert.same(nil, match_t.matches.uri_captures)
       end)
 
@@ -655,12 +738,14 @@ describe("Router", function()
           {
             service = service,
             route   = {
+              id = "e8fb37f1-102d-461e-9c51-6608a6bb8101",
               paths = { "/my-route/hello" },
             },
           },
           {
             service = service,
             route   = {
+              id = "e8fb37f1-102d-461e-9c51-6608a6bb8102",
               paths = { "/my-route" },
             },
           },
@@ -668,25 +753,33 @@ describe("Router", function()
 
         local router = assert(Router.new(use_case))
 
-        local match_t = router.select("GET", "/my-route/hello", "domain.org")
+        local match_t = router:select("GET", "/my-route/hello", "domain.org")
         assert.truthy(match_t)
         assert.same(use_case[1].route, match_t.route)
-        assert.same("/my-route/hello", match_t.matches.uri)
+        if flavor == "traditional" then
+          assert.same("/my-route/hello", match_t.matches.uri)
+        end
 
-        match_t = router.select("GET", "/my-route/hello/world", "domain.org")
+        match_t = router:select("GET", "/my-route/hello/world", "domain.org")
         assert.truthy(match_t)
         assert.same(use_case[1].route, match_t.route)
-        assert.same("/my-route/hello", match_t.matches.uri)
+        if flavor == "traditional" then
+          assert.same("/my-route/hello", match_t.matches.uri)
+        end
 
-        match_t = router.select("GET", "/my-route", "domain.org")
+        match_t = router:select("GET", "/my-route", "domain.org")
         assert.truthy(match_t)
         assert.same(use_case[2].route, match_t.route)
-        assert.same("/my-route", match_t.matches.uri)
+        if flavor == "traditional" then
+          assert.same("/my-route", match_t.matches.uri)
+        end
 
-        match_t = router.select("GET", "/my-route/world", "domain.org")
+        match_t = router:select("GET", "/my-route/world", "domain.org")
         assert.truthy(match_t)
         assert.same(use_case[2].route, match_t.route)
-        assert.same("/my-route", match_t.matches.uri)
+        if flavor == "traditional" then
+          assert.same("/my-route", match_t.matches.uri)
+        end
       end)
 
       it("does not supersede another route with a longer [uri] while [methods] are also defined", function()
@@ -694,6 +787,7 @@ describe("Router", function()
           {
             service   = service,
             route     = {
+              id = "e8fb37f1-102d-461e-9c51-6608a6bb8101",
               methods = { "POST", "PUT", "GET" },
               paths   = { "/my-route" },
             },
@@ -701,6 +795,7 @@ describe("Router", function()
           {
             service   = service,
             route     = {
+              id = "e8fb37f1-102d-461e-9c51-6608a6bb8102",
               methods = { "POST", "PUT", "GET" },
               paths   = { "/my-route/hello" },
             },
@@ -709,19 +804,19 @@ describe("Router", function()
 
         local router = assert(Router.new(use_case))
 
-        local match_t = router.select("GET", "/my-route/hello", "domain.org")
+        local match_t = router:select("GET", "/my-route/hello", "domain.org")
         assert.truthy(match_t)
         assert.same(use_case[2].route, match_t.route)
 
-        match_t = router.select("GET", "/my-route/hello/world", "domain.org")
+        match_t = router:select("GET", "/my-route/hello/world", "domain.org")
         assert.truthy(match_t)
         assert.same(use_case[2].route, match_t.route)
 
-        match_t = router.select("GET", "/my-route", "domain.org")
+        match_t = router:select("GET", "/my-route", "domain.org")
         assert.truthy(match_t)
         assert.same(use_case[1].route, match_t.route)
 
-        match_t = router.select("GET", "/my-route/world", "domain.org")
+        match_t = router:select("GET", "/my-route/world", "domain.org")
         assert.truthy(match_t)
         assert.same(use_case[1].route, match_t.route)
       end)
@@ -731,6 +826,7 @@ describe("Router", function()
           {
             service = service,
             route   = {
+              id = "e8fb37f1-102d-461e-9c51-6608a6bb8101",
               hosts = { "domain.org" },
               paths = { "/my-route" },
             },
@@ -738,6 +834,7 @@ describe("Router", function()
           {
             service = service,
             route   = {
+              id = "e8fb37f1-102d-461e-9c51-6608a6bb8102",
               hosts = { "domain.org" },
               paths = { "/my-route/hello" },
             },
@@ -746,19 +843,19 @@ describe("Router", function()
 
         local router = assert(Router.new(use_case))
 
-        local match_t = router.select("GET", "/my-route/hello", "domain.org")
+        local match_t = router:select("GET", "/my-route/hello", "domain.org")
         assert.truthy(match_t)
         assert.same(use_case[2].route, match_t.route)
 
-        match_t = router.select("GET", "/my-route/hello/world", "domain.org")
+        match_t = router:select("GET", "/my-route/hello/world", "domain.org")
         assert.truthy(match_t)
         assert.same(use_case[2].route, match_t.route)
 
-        match_t = router.select("GET", "/my-route", "domain.org")
+        match_t = router:select("GET", "/my-route", "domain.org")
         assert.truthy(match_t)
         assert.same(use_case[1].route, match_t.route)
 
-        match_t = router.select("GET", "/my-route/world", "domain.org")
+        match_t = router:select("GET", "/my-route/world", "domain.org")
         assert.truthy(match_t)
         assert.same(use_case[1].route, match_t.route)
       end)
@@ -768,6 +865,7 @@ describe("Router", function()
           {
             service   = service,
             route     = {
+              id = "e8fb37f1-102d-461e-9c51-6608a6bb8101",
               hosts   = { "example.com" },
               paths   = { "/my-route" },
             },
@@ -775,6 +873,7 @@ describe("Router", function()
           {
             service   = service,
             route     = {
+              id = "e8fb37f1-102d-461e-9c51-6608a6bb8102",
               hosts   = { "example.com" },
               paths   = { "/my-route/hello" },
             },
@@ -782,6 +881,7 @@ describe("Router", function()
           {
             service   = service,
             route     = {
+              id = "e8fb37f1-102d-461e-9c51-6608a6bb8103",
               hosts   = { "example.net" },
               paths   = { "/my-route/hello/world" },
             },
@@ -790,11 +890,11 @@ describe("Router", function()
 
         local router = assert(Router.new(use_case))
 
-        local match_t = router.select("GET", "/my-route/hello/world", "example.com")
+        local match_t = router:select("GET", "/my-route/hello/world", "example.com")
         assert.truthy(match_t)
         assert.same(use_case[2].route, match_t.route)
 
-        local match_t = router.select("GET", "/my-route/hello/world/and/goodnight", "example.com")
+        local match_t = router:select("GET", "/my-route/hello/world/and/goodnight", "example.com")
         assert.truthy(match_t)
         assert.same(use_case[2].route, match_t.route)
       end)
@@ -804,12 +904,14 @@ describe("Router", function()
           {
             service = service,
             route   = {
+              id = "e8fb37f1-102d-461e-9c51-6608a6bb8101",
               paths = { "/something/my-route" },
             },
           },
           {
             service = service,
             route   = {
+              id = "e8fb37f1-102d-461e-9c51-6608a6bb8102",
               hosts  = { "example.com" },
               paths = { "/my-route" },
             },
@@ -818,11 +920,13 @@ describe("Router", function()
 
         local router = assert(Router.new(use_case))
 
-        local match_t = router.select("GET", "/something/my-route", "example.com")
+        local match_t = router:select("GET", "/something/my-route", "example.com")
         assert.truthy(match_t)
         -- would be route-2 if URI matching was not prefix-only (anchored mode)
         assert.same(use_case[1].route, match_t.route)
-        assert.same("/something/my-route", match_t.matches.uri)
+        if flavor == "traditional" then
+          assert.same("/something/my-route", match_t.matches.uri)
+        end
       end)
     end)
 
@@ -832,6 +936,7 @@ describe("Router", function()
           {
             service = service,
             route   = {
+              id = "e8fb37f1-102d-461e-9c51-6608a6bb8101",
               paths = { [[/users/\d+/profile]] },
             },
           },
@@ -839,12 +944,14 @@ describe("Router", function()
 
         local router = assert(Router.new(use_case))
 
-        local match_t = router.select("GET", "/users/123/profile", "domain.org")
+        local match_t = router:select("GET", "/users/123/profile", "domain.org")
         assert.truthy(match_t)
         assert.same(use_case[1].route, match_t.route)
         assert.same(nil, match_t.matches.host)
         assert.same(nil, match_t.matches.method)
-        assert.same([[/users/\d+/profile]], match_t.matches.uri)
+        if flavor == "traditional" then
+          assert.same([[/users/\d+/profile]], match_t.matches.uri)
+        end
         assert.same(nil, match_t.matches.uri_captures)
       end)
 
@@ -853,18 +960,21 @@ describe("Router", function()
           {
             service = service,
             route   = {
+              id = "e8fb37f1-102d-461e-9c51-6608a6bb8101",
               paths = { [[/route/persons/\d{3}]] },
             },
           },
           {
             service = service,
             route   = {
+              id = "e8fb37f1-102d-461e-9c51-6608a6bb8102",
               paths = { [[/route/persons/\d{3}/following]] },
             },
           },
           {
             service = service,
             route   = {
+              id = "e8fb37f1-102d-461e-9c51-6608a6bb8103",
               paths = { [[/route/persons/\d{3}/[a-z]+]] },
             },
           },
@@ -872,7 +982,7 @@ describe("Router", function()
 
         local router = assert(Router.new(use_case))
 
-        local match_t = router.select("GET", "/route/persons/456", "domain.org")
+        local match_t = router:select("GET", "/route/persons/456", "domain.org")
         assert.truthy(match_t)
         assert.same(use_case[1].route, match_t.route)
       end)
@@ -882,12 +992,14 @@ describe("Router", function()
           {
             service = service,
             route   = {
+              id = "e8fb37f1-102d-461e-9c51-6608a6bb8101",
               paths = { [[/route/persons]] },
             },
           },
           {
             service = service,
             route   = {
+              id = "e8fb37f1-102d-461e-9c51-6608a6bb8102",
               paths = { [[/route/persons/\d+/profile]] },
             },
           },
@@ -895,13 +1007,15 @@ describe("Router", function()
 
         local router = assert(Router.new(use_case))
 
-        local match_t = router.select("GET", "/route/persons/123/profile",
+        local match_t = router:select("GET", "/route/persons/123/profile",
                                       "domain.org")
         assert.truthy(match_t)
         assert.same(use_case[2].route, match_t.route)
         assert.same(nil, match_t.matches.host)
         assert.same(nil, match_t.matches.method)
-        assert.same([[/route/persons/\d+/profile]], match_t.matches.uri)
+        if flavor == "traditional" then
+          assert.same([[/route/persons/\d+/profile]], match_t.matches.uri)
+        end
         assert.same(nil, match_t.matches.uri_captures)
       end)
 
@@ -910,12 +1024,14 @@ describe("Router", function()
           {
             service = service,
             route   = {
+              id = "e8fb37f1-102d-461e-9c51-6608a6bb8101",
               paths = { "/route/fixture" },
             },
           },
           {
             service = service,
             route   = {
+              id = "e8fb37f1-102d-461e-9c51-6608a6bb8102",
               paths = { "/route/(fixture)" },
             },
           },
@@ -923,12 +1039,14 @@ describe("Router", function()
 
         local router = assert(Router.new(use_case))
 
-        local match_t = router.select("GET", "/route/fixture", "domain.org")
+        local match_t = router:select("GET", "/route/fixture", "domain.org")
         assert.truthy(match_t)
         assert.same(use_case[2].route, match_t.route)
         assert.same(nil, match_t.matches.host)
         assert.same(nil, match_t.matches.method)
-        assert.same("/route/(fixture)", match_t.matches.uri)
+        if flavor == "traditional" then
+          assert.same("/route/(fixture)", match_t.matches.uri)
+        end
       end)
 
       it("matches a [uri regex + host] even if a [prefix uri] got a match", function()
@@ -936,6 +1054,7 @@ describe("Router", function()
           {
             service = service,
             route   = {
+              id = "e8fb37f1-102d-461e-9c51-6608a6bb8101",
               hosts = { "route.com" },
               paths = { "/pat" },
             },
@@ -943,6 +1062,7 @@ describe("Router", function()
           {
             service = service,
             route   = {
+              id = "e8fb37f1-102d-461e-9c51-6608a6bb8102",
               hosts = { "route.com" },
               paths = { "/path" },
               methods = { "POST" },
@@ -951,6 +1071,7 @@ describe("Router", function()
           {
             service = service,
             route   = {
+              id = "e8fb37f1-102d-461e-9c51-6608a6bb8103",
               hosts = { "route.com" },
               paths = { "/(path)" },
             },
@@ -959,60 +1080,70 @@ describe("Router", function()
 
         local router = assert(Router.new(use_case))
 
-        local match_t = router.select("GET", "/path", "route.com")
+        local match_t = router:select("GET", "/path", "route.com")
         assert.truthy(match_t)
         assert.same(use_case[3].route, match_t.route)
-        assert.same("route.com", match_t.matches.host)
+        if flavor == "traditional" then
+          assert.same("route.com", match_t.matches.host)
+          assert.same("/(path)", match_t.matches.uri)
+        end
         assert.same(nil, match_t.matches.method)
-        assert.same("/(path)", match_t.matches.uri)
       end)
     end)
 
     describe("[wildcard host]", function()
-      local use_case = {
-        {
-          service = service,
-          route   = {
-            hosts = { "*.route.com" },
-          },
-        },
-        {
-          service = service,
-          route   = {
-            hosts = { "route.*" },
-          },
-        },
-      }
+      local use_case, router
 
-      local router = assert(Router.new(use_case))
+      lazy_setup(function()
+        use_case = {
+          {
+            service = service,
+            route   = {
+              id = "e8fb37f1-102d-461e-9c51-6608a6bb8101",
+              hosts = { "*.route.com" },
+            },
+          },
+          {
+            service = service,
+            route   = {
+              id = "e8fb37f1-102d-461e-9c51-6608a6bb8102",
+              hosts = { "route.*" },
+            },
+          },
+        }
+
+        router = assert(Router.new(use_case))
+      end)
 
       it("matches leftmost wildcards", function()
-        local match_t = router.select("GET", "/", "foo.route.com", "domain.org")
+        local match_t = router:select("GET", "/", "foo.route.com", "domain.org")
         assert.truthy(match_t)
         assert.same(use_case[1].route, match_t.route)
-        assert.same(use_case[1].route.hosts[1], match_t.matches.host)
+        if flavor == "traditional" then
+          assert.same(use_case[1].route.hosts[1], match_t.matches.host)
+        end
         assert.same(nil, match_t.matches.method)
         assert.same(nil, match_t.matches.uri)
         assert.same(nil, match_t.matches.uri_captures)
       end)
 
       it("matches rightmost wildcards", function()
-        local match_t = router.select("GET", "/", "route.org")
+        local match_t = router:select("GET", "/", "route.org")
         assert.truthy(match_t)
         assert.same(use_case[2].route, match_t.route)
       end)
 
-      it("matches any port in request", function()
-        local match_t = router.select("GET", "/", "route.org:123")
+      it_trad_only("matches any port in request", function()
+        local match_t = router:select("GET", "/", "route.org:123")
         assert.truthy(match_t)
         assert.same(use_case[2].route, match_t.route)
 
-        local match_t = router.select("GET", "/", "foo.route.com:123", "domain.org")
+        local match_t = router:select("GET", "/", "foo.route.com:123", "domain.org")
         assert.truthy(match_t)
         assert.same(use_case[1].route, match_t.route)
       end)
 
-      it("matches port-specific routes", function()
+      it_trad_only("matches port-specific routes", function()
         table.insert(use_case, {
           service = service,
           route   = {
@@ -1034,20 +1165,20 @@ describe("Router", function()
         end)
 
         -- match the right port
-        local match_t = router.select("GET", "/", "foo.route.net:123")
+        local match_t = router:select("GET", "/", "foo.route.net:123")
         assert.truthy(match_t)
         assert.same(use_case[3].route, match_t.route)
 
         -- fail different port
-        assert.is_nil(router.select("GET", "/", "foo.route.net:456"))
+        assert.is_nil(router:select("GET", "/", "foo.route.net:456"))
 
         -- port-specific is higher priority
-        local match_t = router.select("GET", "/", "route.org:123")
+        local match_t = router:select("GET", "/", "route.org:123")
         assert.truthy(match_t)
         assert.same(use_case[4].route, match_t.route)
       end)
 
-      it("prefers port-specific even for http default port", function()
+      it_trad_only("prefers port-specific even for http default port", function()
         table.insert(use_case, {
           service = service,
           route   = {
@@ -1062,19 +1193,19 @@ describe("Router", function()
         end)
 
         -- non-port matches any
-        local match_t = assert(router.select("GET", "/", "route.org:123"))
+        local match_t = assert(router:select("GET", "/", "route.org:123"))
         assert.same(use_case[2].route, match_t.route)
 
         -- port 80 goes to port-specific route
-        local match_t = assert(router.select("GET", "/", "route.org:80"))
+        local match_t = assert(router:select("GET", "/", "route.org:80"))
         assert.same(use_case[3].route, match_t.route)
 
         -- even if it's implicit port 80
-        local match_t = assert(router.select("GET", "/", "route.org"))
+        local match_t = assert(router:select("GET", "/", "route.org"))
         assert.same(use_case[3].route, match_t.route)
       end)
 
-      it("prefers port-specific even for https default port", function()
+      it_trad_only("prefers port-specific even for https default port", function()
         table.insert(use_case, {
           service = service,
           route   = {
@@ -1089,15 +1220,15 @@ describe("Router", function()
         end)
 
         -- non-port matches any
-        local match_t = assert(router.select("GET", "/", "route.org:123"))
+        local match_t = assert(router:select("GET", "/", "route.org:123"))
         assert.same(use_case[2].route, match_t.route)
 
         -- port 80 goes to port-specific route
-        local match_t = assert(router.select("GET", "/", "route.org:443"))
+        local match_t = assert(router:select("GET", "/", "route.org:443"))
         assert.same(use_case[3].route, match_t.route)
 
         -- even if it's implicit port 80
-        local match_t = assert(router.select("GET", "/", "route.org", "https"))
+        local match_t = assert(router:select("GET", "/", "route.org", "https"))
         assert.same(use_case[3].route, match_t.route)
       end)
 
@@ -1105,6 +1236,7 @@ describe("Router", function()
         table.insert(use_case, 1, {
           service = service,
           route   = {
+            id = "e8fb37f1-102d-461e-9c51-6608a6bb8103",
             hosts = { "plain.route.com" },
           },
         })
@@ -1112,6 +1244,7 @@ describe("Router", function()
         table.insert(use_case, {
           service = service,
           route   = {
+            id = "e8fb37f1-102d-461e-9c51-6608a6bb8104",
             hosts = { "route.com" },
           },
         })
@@ -1124,34 +1257,42 @@ describe("Router", function()
 
         router = assert(Router.new(use_case))
 
-        local match_t = router.select("GET", "/", "route.com")
+        local match_t = router:select("GET", "/", "route.com")
         assert.truthy(match_t)
         assert.same(use_case[4].route, match_t.route)
-        assert.same("route.com", match_t.matches.host)
+        if flavor == "traditional" then
+          assert.same("route.com", match_t.matches.host)
+        end
         assert.same(nil, match_t.matches.method)
         assert.same(nil, match_t.matches.uri)
         assert.same(nil, match_t.matches.uri_captures)
 
-        match_t = router.select("GET", "/", "route.org")
+        match_t = router:select("GET", "/", "route.org")
         assert.truthy(match_t)
         assert.same(use_case[3].route, match_t.route)
-        assert.same("route.*", match_t.matches.host)
+        if flavor == "traditional" then
+          assert.same("route.*", match_t.matches.host)
+        end
         assert.same(nil, match_t.matches.method)
         assert.same(nil, match_t.matches.uri)
         assert.same(nil, match_t.matches.uri_captures)
 
-        match_t = router.select("GET", "/", "plain.route.com")
+        match_t = router:select("GET", "/", "plain.route.com")
         assert.truthy(match_t)
         assert.same(use_case[1].route, match_t.route)
-        assert.same("plain.route.com", match_t.matches.host)
+        if flavor == "traditional" then
+          assert.same("plain.route.com", match_t.matches.host)
+        end
         assert.same(nil, match_t.matches.method)
         assert.same(nil, match_t.matches.uri)
         assert.same(nil, match_t.matches.uri_captures)
 
-        match_t = router.select("GET", "/", "foo.route.com")
+        match_t = router:select("GET", "/", "foo.route.com")
         assert.truthy(match_t)
         assert.same(use_case[2].route, match_t.route)
-        assert.same("*.route.com", match_t.matches.host)
+        if flavor == "traditional" then
+          assert.same("*.route.com", match_t.matches.host)
+        end
         assert.same(nil, match_t.matches.method)
         assert.same(nil, match_t.matches.uri)
         assert.same(nil, match_t.matches.uri_captures)
@@ -1162,6 +1303,7 @@ describe("Router", function()
           {
             service = service,
             route   = {
+              id = "e8fb37f1-102d-461e-9c51-6608a6bb8101",
               hosts = { "*.route.com" },
               paths = { "/path1" },
             },
@@ -1169,6 +1311,7 @@ describe("Router", function()
           {
             service = service,
             route   = {
+              id = "e8fb37f1-102d-461e-9c51-6608a6bb8102",
               hosts = { "plain.route.com" },
               paths = { "/path2" },
             },
@@ -1177,12 +1320,14 @@ describe("Router", function()
 
         router = assert(Router.new(use_case))
 
-        local match_t = router.select("GET", "/path1", "plain.route.com")
+        local match_t = router:select("GET", "/path1", "plain.route.com")
         assert.truthy(match_t)
         assert.same(use_case[1].route, match_t.route)
-        assert.same("*.route.com", match_t.matches.host)
+        if flavor == "traditional" then
+          assert.same("*.route.com", match_t.matches.host)
+          assert.same("/path1", match_t.matches.uri)
+        end
         assert.same(nil, match_t.matches.method)
-        assert.same("/path1", match_t.matches.uri)
         assert.same(nil, match_t.matches.uri_captures)
       end)
 
@@ -1191,6 +1336,7 @@ describe("Router", function()
           {
             service = service,
             route   = {
+              id = "e8fb37f1-102d-461e-9c51-6608a6bb8101",
               hosts = { "*.route.com" },
               paths = { "/path1" },
             },
@@ -1198,6 +1344,7 @@ describe("Router", function()
           {
             service = service,
             route   = {
+              id = "e8fb37f1-102d-461e-9c51-6608a6bb8102",
               hosts = { "plain.route.com" },
               paths = { "/path2" },
             },
@@ -1206,26 +1353,30 @@ describe("Router", function()
 
         router = assert(Router.new(use_case))
 
-        local match_t = router.select("GET", "/path2", "plain.route.com")
+        local match_t = router:select("GET", "/path2", "plain.route.com")
         assert.truthy(match_t)
         assert.same(use_case[2].route, match_t.route)
-        assert.same("plain.route.com", match_t.matches.host)
+        if flavor == "traditional" then
+          assert.same("plain.route.com", match_t.matches.host)
+          assert.same("/path2", match_t.matches.uri)
+        end
         assert.same(nil, match_t.matches.method)
-        assert.same("/path2", match_t.matches.uri)
         assert.same(nil, match_t.matches.uri_captures)
       end)
 
-      it("submatch_weight [wildcard host port] > [wildcard host] ", function()
+      it_trad_only("submatch_weight [wildcard host port] > [wildcard host] ", function()
         local use_case = {
           {
             service = service,
             route = {
+              id = "e8fb37f1-102d-461e-9c51-6608a6bb8101",
               hosts = { "route.*" },
             },
           },
           {
             service = service,
             route = {
+              id = "e8fb37f1-102d-461e-9c51-6608a6bb8102",
               hosts = { "route.*:80", "route.com.*" },
             },
           },
@@ -1233,7 +1384,7 @@ describe("Router", function()
 
         local router = assert(Router.new(use_case))
 
-        local match_t = router.select("GET", "/", "route.org:80")
+        local match_t = router:select("GET", "/", "route.org:80")
         assert.truthy(match_t)
         assert.same(use_case[2].route, match_t.route)
         assert.same("route.*:80", match_t.matches.host)
@@ -1242,23 +1393,26 @@ describe("Router", function()
         assert.same(nil, match_t.matches.uri_captures)
       end)
 
-      it("matches a [wildcard host + port] even if a [wildcard host] matched", function()
+      it_trad_only("matches a [wildcard host + port] even if a [wildcard host] matched", function()
         local use_case = {
           {
             service = service,
             route = {
+              id = "e8fb37f1-102d-461e-9c51-6608a6bb8101",
               hosts = { "route.*" },
             },
           },
           {
             service = service,
             route = {
+              id = "e8fb37f1-102d-461e-9c51-6608a6bb8102",
               hosts = { "route.*:123" },
             },
           },
           {
             service = service,
             route = {
+              id = "e8fb37f1-102d-461e-9c51-6608a6bb8103",
               hosts = { "route.*:80" },
             },
           },
@@ -1267,7 +1421,7 @@ describe("Router", function()
         local router = assert(Router.new(use_case))
 
         -- explicit port
-        local match_t = router.select("GET", "/", "route.org:123")
+        local match_t = router:select("GET", "/", "route.org:123")
         assert.truthy(match_t)
         assert.same(use_case[2].route, match_t.route)
         assert.same("route.*:123", match_t.matches.host)
@@ -1276,7 +1430,7 @@ describe("Router", function()
         assert.same(nil, match_t.matches.uri_captures)
 
         -- implicit port
-        local match_t = router.select("GET", "/", "route.org")
+        local match_t = router:select("GET", "/", "route.org")
         assert.truthy(match_t)
         assert.same(use_case[3].route, match_t.route)
         assert.same("route.*:80", match_t.matches.host)
@@ -1294,6 +1448,7 @@ describe("Router", function()
         table.insert(use_case, {
           service   = service,
           route     = {
+            id = "e8fb37f1-102d-461e-9c51-6608a6bb8101",
             hosts   = { "*.domain.com", "example.com" },
             paths   = { "/path" },
             methods = { "GET", "TRACE" },
@@ -1302,18 +1457,18 @@ describe("Router", function()
 
         router = assert(Router.new(use_case))
 
-        local match_t = router.select("POST", "/path", "foo.domain.com")
+        local match_t = router:select("POST", "/path", "foo.domain.com")
         assert.is_nil(match_t)
 
-        match_t = router.select("GET", "/path", "foo.domain.com")
+        match_t = router:select("GET", "/path", "foo.domain.com")
         assert.truthy(match_t)
         assert.same(use_case[#use_case].route, match_t.route)
 
-        match_t = router.select("TRACE", "/path", "example.com")
+        match_t = router:select("TRACE", "/path", "example.com")
         assert.truthy(match_t)
         assert.same(use_case[#use_case].route, match_t.route)
 
-        match_t = router.select("POST", "/path", "foo.domain.com")
+        match_t = router:select("POST", "/path", "foo.domain.com")
         assert.is_nil(match_t)
       end)
     end)
@@ -1324,6 +1479,7 @@ describe("Router", function()
           {
             service = service,
             route   = {
+              id = "e8fb37f1-102d-461e-9c51-6608a6bb8101",
               hosts = { "*.example.com" },
               paths = { [[/users/\d+/profile]] },
             },
@@ -1331,6 +1487,7 @@ describe("Router", function()
           {
             service = service,
             route   = {
+              id = "e8fb37f1-102d-461e-9c51-6608a6bb8102",
               hosts = { "*.example.com" },
               paths = { [[/users]] },
             },
@@ -1339,23 +1496,24 @@ describe("Router", function()
 
         local router = assert(Router.new(use_case))
 
-        local match_t = router.select("GET", "/users/123/profile",
+        local match_t = router:select("GET", "/users/123/profile",
                                       "test.example.com")
         assert.truthy(match_t)
         assert.same(use_case[1].route, match_t.route)
 
-        match_t = router.select("GET", "/users", "test.example.com")
+        match_t = router:select("GET", "/users", "test.example.com")
         assert.truthy(match_t)
         assert.same(use_case[2].route, match_t.route)
       end)
     end)
 
     describe("[headers]", function()
-      it("evaluates Routes with more [headers] first", function()
+      it_trad_only("evaluates Routes with more [headers] first", function()
         local use_case = {
           {
             service = service,
             route = {
+              id = "e8fb37f1-102d-461e-9c51-6608a6bb8101",
               headers = {
                 version = { "v1", "v2" },
                 user_agent = { "foo", "bar" },
@@ -1365,6 +1523,7 @@ describe("Router", function()
           {
             service = service,
             route = {
+              id = "e8fb37f1-102d-461e-9c51-6608a6bb8102",
               headers = {
                 version = { "v1", "v2" },
                 user_agent = { "foo", "bar" },
@@ -1376,7 +1535,7 @@ describe("Router", function()
 
         local router = assert(Router.new(use_case))
 
-        local match_t = router.select("GET", "/", nil, "http", nil, nil, nil, nil, nil,
+        local match_t = router:select("GET", "/", nil, "http", nil, nil, nil, nil, nil,
                                       {
                                         version = "v1",
                                         user_agent = "foo",
@@ -1391,6 +1550,7 @@ describe("Router", function()
           {
             service = service,
             route = {
+              id = "e8fb37f1-102d-461e-9c51-6608a6bb8101",
               headers = {
                 ["USER_AGENT"] = { "foo", "bar" },
               },
@@ -1399,6 +1559,7 @@ describe("Router", function()
           {
             service = service,
             route = {
+              id = "e8fb37f1-102d-461e-9c51-6608a6bb8102",
               headers = {
                 user_agent = { "baz" },
               },
@@ -1408,21 +1569,25 @@ describe("Router", function()
 
         local router = assert(Router.new(use_case))
 
-        local match_t = router.select("GET", "/", nil, "http", nil, nil, nil, nil, nil,
+        local match_t = router:select("GET", "/", nil, "http", nil, nil, nil, nil, nil,
                                       setmetatable({
                                         user_agent = "foo",
                                       }, headers_mt))
         assert.truthy(match_t)
         assert.same(use_case[1].route, match_t.route)
-        assert.same({ user_agent = "foo" }, match_t.matches.headers)
+        if flavor == "traditional" then
+          assert.same({ user_agent = "foo" }, match_t.matches.headers)
+        end
 
-        local match_t = router.select("GET", "/", nil, "http", nil, nil, nil, nil, nil,
+        local match_t = router:select("GET", "/", nil, "http", nil, nil, nil, nil, nil,
                                       setmetatable({
                                         ["USER_AGENT"] = "baz",
                                       }, headers_mt))
         assert.truthy(match_t)
         assert.same(use_case[2].route, match_t.route)
-        assert.same({ user_agent = "baz" }, match_t.matches.headers)
+        if flavor == "traditional" then
+          assert.same({ user_agent = "baz" }, match_t.matches.headers)
+        end
       end)
 
       it("matches values in a case-insensitive way", function()
@@ -1430,6 +1595,7 @@ describe("Router", function()
           {
             service = service,
             route = {
+              id = "e8fb37f1-102d-461e-9c51-6608a6bb8101",
               headers = {
                 user_agent = { "foo", "bar" },
               },
@@ -1438,6 +1604,7 @@ describe("Router", function()
           {
             service = service,
             route = {
+              id = "e8fb37f1-102d-461e-9c51-6608a6bb8102",
               headers = {
                 user_agent = { "BAZ" },
               },
@@ -1447,95 +1614,107 @@ describe("Router", function()
 
         local router = assert(Router.new(use_case))
 
-        local match_t = router.select("GET", "/", nil, "http", nil, nil, nil, nil, nil,
+        local match_t = router:select("GET", "/", nil, "http", nil, nil, nil, nil, nil,
                                       {
                                         user_agent = "FOO",
                                       })
         assert.truthy(match_t)
         assert.same(use_case[1].route, match_t.route)
-        assert.same({ user_agent = "foo" }, match_t.matches.headers)
+        if flavor == "traditional" then
+          assert.same({ user_agent = "foo" }, match_t.matches.headers)
+        end
 
-        local match_t = router.select("GET", "/", nil, "http", nil, nil, nil, nil, nil,
+        local match_t = router:select("GET", "/", nil, "http", nil, nil, nil, nil, nil,
                                       {
                                         user_agent = "baz",
                                       })
         assert.truthy(match_t)
         assert.same(use_case[2].route, match_t.route)
-        assert.same({ user_agent = "baz" }, match_t.matches.headers)
+        if flavor == "traditional" then
+          assert.same({ user_agent = "baz" }, match_t.matches.headers)
+        end
       end)
     end)
 
     describe("normalization stopgap measurements", function()
-      local use_case = {
-        -- percent encoding with unreserved char, route should be plain text
-        {
-          service = service,
-          route   = {
-            paths = {
-              "/plain/a.b%2Ec", -- /plain/a.b.c
+      local use_case, router
+
+      lazy_setup(function()
+        use_case = {
+          -- percent encoding with unreserved char, route should be plain text
+          {
+            service = service,
+            route   = {
+              id = "e8fb37f1-102d-461e-9c51-6608a6bb8101",
+              paths = {
+                "/plain/a.b%2Ec", -- /plain/a.b.c
+              },
             },
           },
-        },
-        -- regex
-        {
-          service = service,
-          route   = {
-            paths = {
-              "/reg%65x/\\d+", -- /regex/\d+
+          -- regex
+          {
+            service = service,
+            route   = {
+              id = "e8fb37f1-102d-461e-9c51-6608a6bb8102",
+              paths = {
+                "/reg%65x/\\d+", -- /regex/\d+
+              },
             },
           },
-        },
-        {
-          service = service,
-          route   = {
-            paths = {
-              "/regex-meta/%5Cd\\+%2E", -- /regex/\d+.
+          {
+            service = service,
+            route   = {
+              id = "e8fb37f1-102d-461e-9c51-6608a6bb8103",
+              paths = {
+                "/regex-meta/%5Cd\\+%2E", -- /regex/\d+.
+              },
             },
           },
-        },
-        {
-          service = service,
-          route   = {
-            paths = {
-              "/regex-reserved%2Fabc", -- /regex-reserved/abc
+          {
+            service = service,
+            route   = {
+              id = "e8fb37f1-102d-461e-9c51-6608a6bb8104",
+              paths = {
+                "/regex-reserved%2Fabc", -- /regex-reserved/abc
+              },
             },
           },
-        },
-      }
-      local router = assert(Router.new(use_case))
+        }
+        router = assert(Router.new(use_case))
+      end)
 
       it("matches against plain text paths", function()
-        local match_t = router.select("GET", "/plain/a.b.c", "example.com")
+        local match_t = router:select("GET", "/plain/a.b.c", "example.com")
         assert.truthy(match_t)
         assert.same(use_case[1].route, match_t.route)
 
-        match_t = router.select("GET", "/plain/aab.c", "example.com")
+        match_t = router:select("GET", "/plain/aab.c", "example.com")
         assert.falsy(match_t)
       end)
 
       it("matches against regex paths", function()
-        local match_t = router.select("GET", "/regex/123", "example.com")
+        local match_t = router:select("GET", "/regex/123", "example.com")
         assert.truthy(match_t)
         assert.same(use_case[2].route, match_t.route)
 
-        match_t = router.select("GET", "/regex/\\d+", "example.com")
+        match_t = router:select("GET", "/regex/\\d+", "example.com")
         assert.falsy(match_t)
       end)
 
       it("escapes meta character after percent decoding from regex paths", function()
-        local match_t = router.select("GET", "/regex-meta/123a", "example.com")
+        local match_t = router:select("GET", "/regex-meta/123a", "example.com")
         assert.falsy(match_t)
 
-        match_t = router.select("GET", "/regex-meta/\\d+.", "example.com")
+        match_t = router:select("GET", "/regex-meta/\\d+.", "example.com")
         assert.truthy(match_t)
         assert.same(use_case[3].route, match_t.route)
       end)
 
       it("leave reserved characters alone in regex paths", function()
-        local match_t = router.select("GET", "/regex-reserved/abc", "example.com")
+        local match_t = router:select("GET", "/regex-reserved/abc", "example.com")
         assert.falsy(match_t)
 
-        match_t = router.select("GET", "/regex-reserved%2Fabc", "example.com")
+        match_t = router:select("GET", "/regex-reserved%2Fabc", "example.com")
         assert.truthy(match_t)
         assert.same(use_case[4].route, match_t.route)
       end)
@@ -1548,6 +1727,7 @@ describe("Router", function()
           {
             service = service,
             route   = {
+              id = "e8fb37f1-102d-461e-9c51-6608a6bb8101",
               hosts = {
                 "domain-1.org",
                 "domain-2.org"
@@ -1558,6 +1738,7 @@ describe("Router", function()
           {
             service = service,
             route   = {
+              id = "e8fb37f1-102d-461e-9c51-6608a6bb8102",
               methods = {
                 "TRACE"
               },
@@ -1567,6 +1748,7 @@ describe("Router", function()
           {
             service = service,
             route   = {
+              id = "e8fb37f1-102d-461e-9c51-6608a6bb8103",
               paths = {
                 "/my-route"
               },
@@ -1576,6 +1758,7 @@ describe("Router", function()
           {
             service = service,
             route   = {
+              id = "e8fb37f1-102d-461e-9c51-6608a6bb8104",
               paths = {
                 "/route-4"
               },
@@ -1589,6 +1772,7 @@ describe("Router", function()
           {
             service = service,
             route   = {
+              id = "e8fb37f1-102d-461e-9c51-6608a6bb8105",
               hosts = {
                 "domain-1.org",
                 "domain-2.org"
@@ -1604,6 +1788,7 @@ describe("Router", function()
           {
             service = service,
             route   = {
+              id = "e8fb37f1-102d-461e-9c51-6608a6bb8106",
               methods = {
                 "POST",
                 "PUT",
@@ -1618,6 +1803,7 @@ describe("Router", function()
           {
             service = service,
             route   = {
+              id = "e8fb37f1-102d-461e-9c51-6608a6bb8107",
               hosts = {
                 "domain-with-uri-1.org",
                 "domain-with-uri-2.org"
@@ -1634,12 +1820,12 @@ describe("Router", function()
           },
         }
         local router = assert(Router.new(use_case))
-        local match_t = router.select("TRACE", "/", "domain-2.org")
+        local match_t = router:select("TRACE", "/", "domain-2.org")
         assert.truthy(match_t)
         assert.same(use_case[1].route, match_t.route)
 
         -- uri
-        local match_t = router.select("TRACE", "/my-route", "domain.org")
+        local match_t = router:select("TRACE", "/my-route", "domain.org")
         assert.truthy(match_t)
         assert.same(use_case[3].route, match_t.route)
       end)
@@ -1649,6 +1835,7 @@ describe("Router", function()
           {
             service = service,
             route   = {
+              id = "e8fb37f1-102d-461e-9c51-6608a6bb8101",
               hosts = { "host1.com" },
               paths = { "/v1/path" },
             },
@@ -1656,6 +1843,7 @@ describe("Router", function()
           {
             service = service,
             route   = {
+              id = "e8fb37f1-102d-461e-9c51-6608a6bb8102",
               hosts = { "host2.com" },
               paths = { "/" },
             },
@@ -1663,11 +1851,11 @@ describe("Router", function()
         }
 
         local router = assert(Router.new(use_case))
-        local match_t = router.select("GET", "/v1/path", "host1.com")
+        local match_t = router:select("GET", "/v1/path", "host1.com")
         assert.truthy(match_t)
         assert.same(use_case[1].route, match_t.route)
 
-        match_t = router.select("GET", "/v1/path", "host2.com")
+        match_t = router:select("GET", "/v1/path", "host2.com")
         assert.truthy(match_t)
         assert.same(use_case[2].route, match_t.route)
       end)
@@ -1677,6 +1865,7 @@ describe("Router", function()
           {
             service   = service,
             route     = {
+              id = "e8fb37f1-102d-461e-9c51-6608a6bb8101",
               hosts   = { "host.*" },
               methods = { "GET" },
             },
@@ -1684,6 +1873,7 @@ describe("Router", function()
           {
             service   = service,
             route     = {
+              id = "e8fb37f1-102d-461e-9c51-6608a6bb8102",
               hosts   = { "host.*" },
               methods = { "POST" },
             },
@@ -1691,11 +1881,11 @@ describe("Router", function()
         }
 
         local router = assert(Router.new(use_case))
-        local match_t = router.select("GET", "/", "host.com")
+        local match_t = router:select("GET", "/", "host.com")
         assert.truthy(match_t)
         assert.same(use_case[1].route, match_t.route)
 
-        match_t = router.select("POST", "/", "host.com")
+        match_t = router:select("POST", "/", "host.com")
         assert.truthy(match_t)
         assert.same(use_case[2].route, match_t.route)
       end)
@@ -1705,6 +1895,7 @@ describe("Router", function()
           {
             service   = service,
             route     = {
+              id = "e8fb37f1-102d-461e-9c51-6608a6bb8101",
               methods = { "GET" },
               paths   = { [[/users/\d+/profile]] },
             },
@@ -1712,6 +1903,7 @@ describe("Router", function()
           {
             service   = service,
             route     = {
+              id = "e8fb37f1-102d-461e-9c51-6608a6bb8102",
               methods = { "POST" },
               paths   = { [[/users/\d*/profile]] },
             },
@@ -1719,11 +1911,11 @@ describe("Router", function()
         }
 
         local router = assert(Router.new(use_case))
-        local match_t = router.select("GET", "/users/123/profile", "domain.org")
+        local match_t = router:select("GET", "/users/123/profile", "domain.org")
         assert.truthy(match_t)
         assert.same(use_case[1].route, match_t.route)
 
-        match_t = router.select("POST", "/users/123/profile", "domain.org")
+        match_t = router:select("POST", "/users/123/profile", "domain.org")
         assert.truthy(match_t)
         assert.same(use_case[2].route, match_t.route)
       end)
@@ -1733,23 +1925,25 @@ describe("Router", function()
           {
             service   = service,
             route     = {
+              id = "e8fb37f1-102d-461e-9c51-6608a6bb8101",
               methods = { "GET" },
             },
           },
           {
             service   = service,
             route     = {
+              id = "e8fb37f1-102d-461e-9c51-6608a6bb8102",
               paths   = { "/example" },
             },
           },
         }
 
         local router = assert(Router.new(use_case))
-        local match_t = router.select("GET", "/example", "domain.org")
+        local match_t = router:select("GET", "/example", "domain.org")
         assert.truthy(match_t)
         assert.same(use_case[2].route, match_t.route)
 
-        match_t = router.select("GET", "/example/status/200", "domain.org")
+        match_t = router:select("GET", "/example/status/200", "domain.org")
         assert.truthy(match_t)
         assert.same(use_case[2].route, match_t.route)
       end)
@@ -1759,38 +1953,42 @@ describe("Router", function()
           {
             service    = service,
             route      = {
+              id = "e8fb37f1-102d-461e-9c51-6608a6bb8101",
               methods  = { "GET" },
             },
           },
           {
             service = service,
             route   = {
+              id = "e8fb37f1-102d-461e-9c51-6608a6bb8102",
               hosts = { "domain.*" },
             },
           },
         }
 
         local router = assert(Router.new(use_case))
-        local match_t = router.select("GET", "/", "nothing.com")
+        local match_t = router:select("GET", "/", "nothing.com")
         assert.truthy(match_t)
         assert.same(use_case[1].route, match_t.route)
 
-        match_t = router.select("GET", "/", "domain.com")
+        match_t = router:select("GET", "/", "domain.com")
         assert.truthy(match_t)
         assert.same(use_case[2].route, match_t.route)
       end)
 
-      it("does not supersede another route with a longer [uri prefix]", function()
+      it_trad_only("does not supersede another route with a longer [uri prefix]", function()
         local use_case = {
           {
             service = service,
             route   = {
+              id = "e8fb37f1-102d-461e-9c51-6608a6bb8101",
               paths = { "/a", "/bbbbbbb" },
             },
           },
           {
             service = service,
             route   = {
+              id = "e8fb37f1-102d-461e-9c51-6608a6bb8102",
               paths = { "/a/bb" },
             },
           },
@@ -1798,7 +1996,7 @@ describe("Router", function()
 
         local router = assert(Router.new(use_case))
 
-        local match_t = router.select("GET", "/a/bb/foobar", "domain.org")
+        local match_t = router:select("GET", "/a/bb/foobar", "domain.org")
         assert.truthy(match_t)
         assert.same(use_case[2].route, match_t.route)
       end)
@@ -1808,6 +2006,7 @@ describe("Router", function()
           table.insert(use_case, 1, {
             service = service,
             route   = {
+              id = "e8fb37f1-102d-461e-9c51-6608a6bb810f",
               paths = { "/" },
             }
           })
@@ -1819,25 +2018,25 @@ describe("Router", function()
 
         it("request with [method]", function()
           local router = assert(Router.new(use_case))
-          local match_t = router.select("GET", "/", "domain.org")
+          local match_t = router:select("GET", "/", "domain.org")
           assert.truthy(match_t)
           assert.same(use_case[1].route, match_t.route)
         end)
 
         it("does not supersede another route", function()
           local router = assert(Router.new(use_case))
-          local match_t = router.select("GET", "/my-route", "domain.org")
+          local match_t = router:select("GET", "/my-route", "domain.org")
           assert.truthy(match_t)
           assert.same(use_case[4].route, match_t.route)
 
-          match_t = router.select("GET", "/my-route/hello/world", "domain.org")
+          match_t = router:select("GET", "/my-route/hello/world", "domain.org")
           assert.truthy(match_t)
           assert.same(use_case[4].route, match_t.route)
         end)
 
         it("acts as a catch-all route", function()
           local router = assert(Router.new(use_case))
-          local match_t = router.select("GET", "/foobar/baz", "domain.org")
+          local match_t = router:select("GET", "/foobar/baz", "domain.org")
           assert.truthy(match_t)
           assert.same(use_case[1].route, match_t.route)
         end)
@@ -1845,17 +2044,18 @@ describe("Router", function()
 
       describe("multiple routes of same category with conflicting values", function()
         -- reload router to reset combined cached matchers
-        reload_router()
+        reload_router("traditional_compatible")
 
         local n = 6
 
         lazy_setup(function()
           -- all those routes are of the same category:
           -- [host + uri]
-          for _ = 1, n - 1 do
+          for i = 1, n - 1 do
             table.insert(use_case, {
               service = service,
               route   = {
+                id = "e8fb37f1-102d-461e-9c51-6608a6bb811" .. i,
                 hosts = { "domain.org" },
                 paths = { "/my-uri" },
               },
@@ -1865,6 +2065,7 @@ describe("Router", function()
           table.insert(use_case, {
             service = service,
             route   = {
+              id = "e8fb37f1-102d-461e-9c51-6608a6bb8121",
               hosts = { "domain.org" },
               paths = { "/my-target-uri" },
             },
@@ -1879,7 +2080,7 @@ describe("Router", function()
 
         it("matches correct route", function()
           local router = assert(Router.new(use_case))
-          local match_t = router.select("GET", "/my-target-uri", "domain.org")
+          local match_t = router:select("GET", "/my-target-uri", "domain.org")
           assert.truthy(match_t)
           assert.same(use_case[#use_case].route, match_t.route)
         end)
@@ -1890,6 +2091,7 @@ describe("Router", function()
           {
             service = service,
             route   = {
+              id = "e8fb37f1-102d-461e-9c51-6608a6bb8101",
               headers = {
                 version = { "v1" },
               },
@@ -1899,6 +2101,7 @@ describe("Router", function()
           {
             service = service,
             route   = {
+              id = "e8fb37f1-102d-461e-9c51-6608a6bb8102",
               headers = {
                 version = { "v1" },
                 location = { "us-east" },
@@ -1910,77 +2113,81 @@ describe("Router", function()
 
         local router = assert(Router.new(use_case))
 
-        local match_t = router.select("GET", "/my-route/hello", "domain.org", "http",
+        local match_t = router:select("GET", "/my-route/hello", "domain.org", "http",
                                       nil, nil, nil, nil, nil, {
                                         version = "v1",
                                         location = "us-east",
                                       })
         assert.truthy(match_t)
         assert.same(use_case[2].route, match_t.route)
-        assert.same("/my-route", match_t.matches.uri)
-        assert.same({ version = "v1", location = "us-east" },
-                    match_t.matches.headers)
+        if flavor == "traditional" then
+          assert.same("/my-route", match_t.matches.uri)
+          assert.same({ version = "v1", location = "us-east" },
+                        match_t.matches.headers)
+        end
 
-        local match_t = router.select("GET", "/my-route/hello/world", "http",
+        local match_t = router:select("GET", "/my-route/hello/world", "http",
                                       "domain.org", nil, nil, nil, nil, nil, {
                                         version = "v1",
                                         location = "us-east",
                                       })
         assert.truthy(match_t)
         assert.same(use_case[2].route, match_t.route)
-        assert.same("/my-route", match_t.matches.uri)
-        assert.same({ version = "v1", location = "us-east" },
-                    match_t.matches.headers)
+        if flavor == "traditional" then
+          assert.same("/my-route", match_t.matches.uri)
+          assert.same({ version = "v1", location = "us-east" },
+                        match_t.matches.headers)
+        end
       end)
     end)
 
     describe("misses", function()
       it("invalid [host]", function()
-        assert.is_nil(router.select("GET", "/", "domain-3.org"))
+        assert.is_nil(router:select("GET", "/", "domain-3.org"))
       end)
 
       it("invalid host in [host + uri]", function()
-        assert.is_nil(router.select("GET", "/route-4", "domain-3.org"))
+        assert.is_nil(router:select("GET", "/route-4", "domain-3.org"))
       end)
 
       it("invalid host in [host + method]", function()
-        assert.is_nil(router.select("GET", "/", "domain-3.org"))
+        assert.is_nil(router:select("GET", "/", "domain-3.org"))
       end)
 
       it("invalid method in [host + uri + method]", function()
-        assert.is_nil(router.select("GET", "/some-uri", "domain-with-uri-2.org"))
+        assert.is_nil(router:select("GET", "/some-uri", "domain-with-uri-2.org"))
       end)
 
       it("invalid uri in [host + uri + method]", function()
-        assert.is_nil(router.select("PUT", "/some-uri-foo",
+        assert.is_nil(router:select("PUT", "/some-uri-foo",
                                     "domain-with-uri-2.org"))
       end)
 
       it("does not match when given [uri] is in URI but not in prefix", function()
-        local match_t = router.select("GET", "/some-other-prefix/my-route",
+        local match_t = router:select("GET", "/some-other-prefix/my-route",
                                       "domain.org")
         assert.is_nil(match_t)
       end)
 
       it("invalid [headers]", function()
-        assert.is_nil(router.select("GET", "/", nil, "http", nil, nil, nil, nil, nil,
+        assert.is_nil(router:select("GET", "/", nil, "http", nil, nil, nil, nil, nil,
                                     { location = "invalid-location" }))
       end)
 
       it("invalid headers in [headers + uri]", function()
-        assert.is_nil(router.select("GET", "/headers-uri",
+        assert.is_nil(router:select("GET", "/headers-uri",
                                     nil, "http", nil, nil, nil, nil, nil,
                                     { location = "invalid-location" }))
       end)
 
       it("invalid headers in [headers + uri + method]", function()
-        assert.is_nil(router.select("PUT", "/headers-uri-method",
+        assert.is_nil(router:select("PUT", "/headers-uri-method",
                                     nil, "http", nil, nil, nil, nil, nil,
                                     { location = "invalid-location" }))
       end)
 
       it("invalid headers in [headers + host + uri + method]", function()
-        assert.is_nil(router.select("PUT", "/headers-host-uri-method",
+        assert.is_nil(router:select("PUT", "/headers-host-uri-method",
                                     nil, "http", nil, nil, nil, nil, nil,
                                     { location = "invalid-location",
                                       host = "domain-with-headers-1.org" }))
@@ -2008,6 +2215,7 @@ describe("Router", function()
             benchmark_use_cases[i] = {
               service = service,
               route   = {
+                id = "e8fb37f1-102d-461e-9c51-6608a1" .. string.format("%06d", i),
                 hosts = { "domain-" .. i .. ".org" },
               },
             }
@@ -2024,7 +2232,7 @@ describe("Router", function()
         end)
 
         it("takes < 1ms", function()
-          local match_t = router.select("GET", "/", target_domain)
+          local match_t = router:select("GET", "/", target_domain)
           assert.truthy(match_t)
           assert.same(benchmark_use_cases[#benchmark_use_cases].route, match_t.route)
         end)
@@ -2046,6 +2254,7 @@ describe("Router", function()
             benchmark_use_cases[i] = {
               service = service,
               route   = {
+                id = "e8fb37f1-102d-461e-9c51-6608a1" .. string.format("%06d", i),
                 hosts = { "domain-" .. n .. ".org" },
                 paths = { "/my-route-" .. n },
               },
@@ -2056,6 +2265,7 @@ describe("Router", function()
           benchmark_use_cases[n] = {
             service   = service,
             route     = {
+              id = "e8fb37f1-102d-461e-9c51-6608a1" .. string.format("%06d", n),
               hosts   = { "domain-" .. n .. ".org" },
               methods = { "POST" },
               paths   = { "/my-route-" .. n },
@@ -2074,7 +2284,7 @@ describe("Router", function()
         end)
 
         it("takes < 1ms", function()
-          local match_t = router.select("POST", target_uri, target_domain)
+          local match_t = router:select("POST", target_uri, target_domain)
           assert.truthy(match_t)
           assert.same(benchmark_use_cases[#benchmark_use_cases].route, match_t.route)
         end)
@@ -2093,6 +2303,7 @@ describe("Router", function()
               benchmark_use_cases[i] = {
                 service = service,
                 route   = {
+                  id = "e8fb37f1-102d-461e-9c51-6608a1" .. string.format("%06d", i),
                   headers = {
                     location  = { "somewhere-" .. i },
                   },
@@ -2111,7 +2322,7 @@ describe("Router", function()
           end)
 
           it("takes < 1ms", function()
-            local match_t = router.select("GET", "/",
+            local match_t = router:select("GET", "/",
                                           nil, "http", nil, nil, nil, nil, nil,
                                           { location = target_location })
             assert.truthy(match_t)
@@ -2133,6 +2344,7 @@ describe("Router", function()
               benchmark_use_cases[i] = {
                 service = service,
                 route   = {
+                  id = "e8fb37f1-102d-461e-9c51-6608a1" .. string.format("%06d", i),
                   headers = {
                     ["key-" .. i]  = { "somewhere" },
                   },
@@ -2152,7 +2364,7 @@ describe("Router", function()
           end)
 
           it("takes < 1ms", function()
-            local match_t = router.select("GET", "/",
+            local match_t = router:select("GET", "/",
                                           nil, "http", nil, nil, nil, nil, nil,
                                           { [target_key] = target_val })
             assert.truthy(match_t)
@@ -2205,7 +2417,7 @@ describe("Router", function()
         end)
 
         it("takes < 1ms", function()
-          local match_t = router.select("GET", target_uri, target_domain)
+          local match_t = router:select("GET", target_uri, target_domain)
           assert.truthy(match_t)
           assert.same(benchmark_use_cases[#benchmark_use_cases].route, match_t.route)
         end)
@@ -2262,7 +2474,7 @@ describe("Router", function()
         end)
 
         it("takes < 1ms", function()
-          local match_t = router.select("POST", target_uri, target_domain, "http",
+          local match_t = router:select("POST", target_uri, target_domain, "http",
                                         nil, nil, nil, nil, nil, {
             location = target_location,
           })
@@ -2276,43 +2488,45 @@ describe("Router", function()
     describe("[errors]", function()
       it("enforces args types", function()
         assert.error_matches(function()
-          router.select(1)
+          router:select(1)
         end, "method must be a string", nil, true)
 
         assert.error_matches(function()
-          router.select("GET", 1)
+          router:select("GET", 1)
         end, "uri must be a string", nil, true)
 
         assert.error_matches(function()
-          router.select("GET", "/", 1)
+          router:select("GET", "/", 1)
         end, "host must be a string", nil, true)
 
         assert.error_matches(function()
-          router.select("GET", "/", "", 1)
+          router:select("GET", "/", "", 1)
         end, "scheme must be a string", nil, true)
 
-        assert.error_matches(function()
-          router.select("GET", "/", "", "http", 1)
-        end, "src_ip must be a string", nil, true)
+        if flavor == "traditional" then
+          assert.error_matches(function()
+            router:select("GET", "/", "", "http", 1)
+          end, "src_ip must be a string", nil, true)
+
+          assert.error_matches(function()
+            router:select("GET", "/", "", "http", nil, "")
+          end, "src_port must be a number", nil, true)
+
+          assert.error_matches(function()
+            router:select("GET", "/", "", "http", nil, nil, 1)
+          end, "dst_ip must be a string", nil, true)
+
+          assert.error_matches(function()
+            router:select("GET", "/", "", "http", nil, nil, nil, "")
+          end, "dst_port must be a number", nil, true)
+        end
 
         assert.error_matches(function()
-          router.select("GET", "/", "", "http", nil, "")
-        end, "src_port must be a number", nil, true)
-
-        assert.error_matches(function()
-          router.select("GET", "/", "", "http", nil, nil, 1)
-        end, "dst_ip must be a string", nil, true)
-
-        assert.error_matches(function()
-          router.select("GET", "/", "", "http", nil, nil, nil, "")
-        end, "dst_port must be a number", nil, true)
-
-        assert.error_matches(function()
-          router.select("GET", "/", "", "http", nil, nil, nil, nil, 1)
+          router:select("GET", "/", "", "http", nil, nil, nil, nil, 1)
         end, "sni must be a string", nil, true)
 
         assert.error_matches(function()
-          router.select("GET", "/", "", "http", nil, nil, nil, nil, nil, 1)
+          router:select("GET", "/", "", "http", nil, nil, nil, nil, nil, 1)
         end, "headers must be a table", nil, true)
       end)
     end)
@@ -2378,7 +2592,7 @@ describe("Router", function()
       local router = assert(Router.new(use_case_routes))
       local _ngx = mock_ngx("GET", "/my-route", { host = "domain.org" })
       router._set_ngx(_ngx)
-      local match_t = router.exec()
+      local match_t = router:exec()
       assert.same(use_case_routes[1].route, match_t.route)
 
       -- upstream_url_t
@@ -2392,7 +2606,7 @@ describe("Router", function()
 
       _ngx = mock_ngx("GET", "/my-route-2", { host = "domain.org" })
       router._set_ngx(_ngx)
-      match_t = router.exec()
+      match_t = router:exec()
       assert.same(use_case_routes[2].route, match_t.route)
 
       -- upstream_url_t
@@ -2442,7 +2656,7 @@ describe("Router", function()
       local router = assert(Router.new(use_case_routes))
       local _ngx = mock_ngx("GET", "/my-route", { host = "host.com" })
       router._set_ngx(_ngx)
-      local match_t = router.exec()
+      local match_t = router:exec()
       assert.same(use_case_routes[1].route, match_t.route)
       assert.equal("host.com", match_t.matches.host)
       assert.equal("/my-route", match_t.matches.uri)
@@ -2451,7 +2665,7 @@ describe("Router", function()
 
       _ngx = mock_ngx("GET", "/my-route/prefix/match", { host = "host.com" })
       router._set_ngx(_ngx)
-      match_t = router.exec()
+      match_t = router:exec()
       assert.same(use_case_routes[1].route, match_t.route)
       assert.equal("host.com", match_t.matches.host)
       assert.equal("/my-route", match_t.matches.uri)
@@ -2460,7 +2674,7 @@ describe("Router", function()
 
       _ngx = mock_ngx("POST", "/my-route", { host = "host.com" })
       router._set_ngx(_ngx)
-      match_t = router.exec()
+      match_t = router:exec()
       assert.same(use_case_routes[2].route, match_t.route)
       assert.equal("host.com", match_t.matches.host)
       assert.equal("/my-route", match_t.matches.uri)
@@ -2472,7 +2686,7 @@ describe("Router", function()
         location = "my-location-1"
       })
       router._set_ngx(_ngx)
-      match_t = router.exec()
+      match_t = router:exec()
       assert.same(use_case_routes[3].route, match_t.route)
       assert.equal("*.host.com", match_t.matches.host)
       assert.same({ location = "my-location-1" }, match_t.matches.headers)
@@ -2481,7 +2695,7 @@ describe("Router", function()
 
       _ngx = mock_ngx("GET", "/users/123/profile", { host = "domain.org" })
       router._set_ngx(_ngx)
-      match_t = router.exec()
+      match_t = router:exec()
       assert.same(use_case_routes[4].route, match_t.route)
       assert.is_nil(match_t.matches.host)
       assert.equal([[/users/\d+/profile]], match_t.matches.uri)
@@ -2503,7 +2717,7 @@ describe("Router", function()
       local _ngx = mock_ngx("GET", "/users/1984/profile",
                             { host = "domain.org" })
       router._set_ngx(_ngx)
-      local match_t = router.exec()
+      local match_t = router:exec()
       assert.equal("1984", match_t.matches.uri_captures[1])
       assert.equal("1984", match_t.matches.uri_captures.user_id)
       assert.equal("",     match_t.matches.uri_captures[2])
@@ -2516,7 +2730,7 @@ describe("Router", function()
 
       -- again, this time from the LRU cache
       router._set_ngx(_ngx)
-      match_t = router.exec()
+      match_t = router:exec()
       assert.equal("1984", match_t.matches.uri_captures[1])
       assert.equal("1984", match_t.matches.uri_captures.user_id)
       assert.equal("",     match_t.matches.uri_captures[2])
@@ -2530,7 +2744,7 @@ describe("Router", function()
       _ngx = mock_ngx("GET", "/users/1984/profile/email",
                       { host = "domain.org" })
       router._set_ngx(_ngx)
-      match_t = router.exec()
+      match_t = router:exec()
       assert.equal("1984",  match_t.matches.uri_captures[1])
       assert.equal("1984",  match_t.matches.uri_captures.user_id)
       assert.equal("email", match_t.matches.uri_captures[2])
@@ -2556,7 +2770,7 @@ describe("Router", function()
       local router = assert(Router.new(use_case))
       local _ngx = mock_ngx("GET", "/hello/world", { host = "domain.org" })
       router._set_ngx(_ngx)
-      local match_t = router.exec()
+      local match_t = router:exec()
       assert.equal("/world", match_t.upstream_uri)
       assert.is_nil(match_t.matches.uri_captures)
     end)
@@ -2575,7 +2789,7 @@ describe("Router", function()
       local _ngx = mock_ngx("GET", "/users/1984/profile",
                             { host = "domain.org" })
       router._set_ngx(_ngx)
-      local match_t = router.exec()
+      local match_t = router:exec()
       assert.is_nil(match_t.matches.uri_captures)
     end)
 
@@ -2597,7 +2811,7 @@ describe("Router", function()
       local router = assert(Router.new(use_case_routes))
       local _ngx = mock_ngx("GET", "/my-route", { host = "domain.org" })
       router._set_ngx(_ngx)
-      local match_t = router.exec()
+      local match_t = router:exec()
       assert.same(use_case_routes[1].route, match_t.route)
       assert.equal("/get", match_t.upstream_url_t.path)
     end)
@@ -2631,12 +2845,12 @@ describe("Router", function()
       local router = assert(Router.new(use_case_routes))
       local _ngx = mock_ngx("GET", "/my-route", { host = "domain.org" })
       router._set_ngx(_ngx)
-      local match_t = router.exec()
+      local match_t = router:exec()
       assert.equal(8080, match_t.upstream_url_t.port)
 
       _ngx = mock_ngx("GET", "/my-route-2", { host = "domain.org" })
       router._set_ngx(_ngx)
-      match_t = router.exec()
+      match_t = router:exec()
       assert.equal(8443, match_t.upstream_url_t.port)
     end)
 
@@ -2653,7 +2867,7 @@ describe("Router", function()
       local router = assert(Router.new(use_case_routes))
       local _ngx = mock_ngx("GET", "/endel%2Fst", { host = "domain.org" })
       router._set_ngx(_ngx)
-      local match_t = router.exec()
+      local match_t = router:exec()
       assert.same(use_case_routes[1].route, match_t.route)
       assert.equal("/endel%2Fst", match_t.upstream_uri)
     end)
@@ -2689,7 +2903,7 @@ describe("Router", function()
         local _ngx = mock_ngx("GET", "/my-route/hello/world",
                               { host = "domain.org" })
         router._set_ngx(_ngx)
-        local match_t = router.exec()
+        local match_t = router:exec()
         assert.same(use_case_routes[1].route, match_t.route)
         assert.equal("/my-route", match_t.prefix)
         assert.equal("/hello/world", match_t.upstream_uri)
@@ -2698,7 +2912,7 @@ describe("Router", function()
       it("strips if matched URI is plain (not a prefix)", function()
         local _ngx = mock_ngx("GET", "/my-route", { host = "domain.org" })
         router._set_ngx(_ngx)
-        local match_t = router.exec()
+        local match_t = router:exec()
         assert.same(use_case_routes[1].route, match_t.route)
         assert.equal("/my-route", match_t.prefix)
         assert.equal("/", match_t.upstream_uri)
@@ -2708,7 +2922,7 @@ describe("Router", function()
         local _ngx = mock_ngx("POST", "/my-route/hello/world",
                               { host = "domain.org" })
         router._set_ngx(_ngx)
-        local match_t = router.exec()
+        local match_t = router:exec()
         assert.same(use_case_routes[2].route, match_t.route)
         assert.is_nil(match_t.prefix)
         assert.equal("/my-route/hello/world", match_t.upstream_uri)
@@ -2718,7 +2932,7 @@ describe("Router", function()
         local _ngx = mock_ngx("POST", "/my-route/hello/world",
                               { host = "domain.org" })
         router._set_ngx(_ngx)
-        local match_t = router.exec()
+        local match_t = router:exec()
         assert.same(use_case_routes[2].route, match_t.route)
         assert.is_nil(match_t.prefix)
         assert.equal("/my-route/hello/world", match_t.upstream_uri)
@@ -2740,7 +2954,7 @@ describe("Router", function()
         local _ngx = mock_ngx("POST", "/my-route/hello/world",
                               { host = "domain.org" })
         router._set_ngx(_ngx)
-        local match_t = router.exec()
+        local match_t = router:exec()
         assert.same(use_case_routes[1].route, match_t.route)
         assert.equal("/", match_t.prefix)
         assert.equal("/my-route/hello/world", match_t.upstream_uri)
@@ -2749,14 +2963,14 @@ describe("Router", function()
       it("can find an route with stripped URI several times in a row", function()
         local _ngx = mock_ngx("GET", "/my-route", { host = "domain.org" })
         router._set_ngx(_ngx)
-        local match_t = router.exec()
+        local match_t = router:exec()
         assert.same(use_case_routes[1].route, match_t.route)
         assert.equal("/my-route", match_t.prefix)
         assert.equal("/", match_t.upstream_uri)
 
         _ngx = mock_ngx("GET", "/my-route", { host = "domain.org" })
         router._set_ngx(_ngx)
-        match_t = router.exec()
+        match_t = router:exec()
         assert.same(use_case_routes[1].route, match_t.route)
         assert.equal("/my-route", match_t.prefix)
         assert.equal("/", match_t.upstream_uri)
@@ -2765,28 +2979,28 @@ describe("Router", function()
       it("can proxy an route with stripped URI with different URIs in a row", function()
         local _ngx = mock_ngx("GET", "/my-route", { host = "domain.org" })
         router._set_ngx(_ngx)
-        local match_t = router.exec()
+        local match_t = router:exec()
         assert.same(use_case_routes[1].route, match_t.route)
         assert.equal("/my-route", match_t.prefix)
         assert.equal("/", match_t.upstream_uri)
 
         _ngx = mock_ngx("GET", "/this-route", { host = "domain.org" })
         router._set_ngx(_ngx)
-        match_t = router.exec()
+        match_t = router:exec()
         assert.same(use_case_routes[1].route, match_t.route)
         assert.equal("/this-route", match_t.prefix)
         assert.equal("/", match_t.upstream_uri)
 
         _ngx = mock_ngx("GET", "/my-route", { host = "domain.org" })
         router._set_ngx(_ngx)
-        match_t = router.exec()
+        match_t = router:exec()
         assert.same(use_case_routes[1].route, match_t.route)
         assert.equal("/my-route", match_t.prefix)
         assert.equal("/", match_t.upstream_uri)
 
         _ngx = mock_ngx("GET", "/this-route", { host = "domain.org" })
         router._set_ngx(_ngx)
-        match_t = router.exec()
+        match_t = router:exec()
         assert.same(use_case_routes[1].route, match_t.route)
         assert.equal("/this-route", match_t.prefix)
         assert.equal("/", match_t.upstream_uri)
@@ -2806,7 +3020,7 @@ describe("Router", function()
         local router = assert(Router.new(use_case_routes))
         local _ngx = mock_ngx("GET", "/endel%2Fst", { host = "domain.org" })
         router._set_ngx(_ngx)
-        local match_t = router.exec()
+        local match_t = router:exec()
         assert.same(use_case_routes[1].route, match_t.route)
         assert.equal("/endel%2Fst", match_t.prefix)
         assert.equal("/", match_t.upstream_uri)
@@ -2827,7 +3041,7 @@ describe("Router", function()
         local _ngx = mock_ngx("GET", "/users/123/profile/hello/world",
                               { host = "domain.org" })
         router._set_ngx(_ngx)
-        local match_t = router.exec()
+        local match_t = router:exec()
         assert.equal("/users/123/profile", match_t.prefix)
         assert.equal("/hello/world", match_t.upstream_uri)
       end)
@@ -2847,7 +3061,7 @@ describe("Router", function()
         local _ngx = mock_ngx("GET", "/users/123/profile/hello/world",
                               { host = "domain.org" })
         router._set_ngx(_ngx)
-        local match_t = router.exec()
+        local match_t = router:exec()
         assert.equal("/users/123/profile", match_t.prefix)
         assert.equal("/hello/world", match_t.upstream_uri)
       end)
@@ -2892,7 +3106,7 @@ describe("Router", function()
         it("uses the request's Host header", function()
           local _ngx = mock_ngx("GET", "/", { host = host })
           router._set_ngx(_ngx)
-          local match_t = router.exec()
+          local match_t = router:exec()
           assert.same(use_case_routes[1].route, match_t.route)
           assert.equal(host, match_t.upstream_host)
         end)
@@ -2900,7 +3114,7 @@ describe("Router", function()
         it("uses the request's Host header incl. port", function()
           local _ngx = mock_ngx("GET", "/", { host = host .. ":123" })
           router._set_ngx(_ngx)
-          local match_t = router.exec()
+          local match_t = router:exec()
           assert.same(use_case_routes[1].route, match_t.route)
           assert.equal(host .. ":123", match_t.upstream_host)
         end)
@@ -2908,7 +3122,7 @@ describe("Router", function()
         it("does not change the target upstream", function()
           local _ngx = mock_ngx("GET", "/", { host = host })
           router._set_ngx(_ngx)
-          local match_t = router.exec()
+          local match_t = router:exec()
           assert.same(use_case_routes[1].route, match_t.route)
           assert.equal("example.org", match_t.upstream_url_t.host)
         end)
@@ -2929,7 +3143,7 @@ describe("Router", function()
           local router = assert(Router.new(use_case_routes))
           local _ngx = mock_ngx("GET", "/foo", { host = "preserve.com" })
           router._set_ngx(_ngx)
-          local match_t = router.exec()
+          local match_t = router:exec()
           assert.same(use_case_routes[1].route, match_t.route)
           assert.equal("preserve.com", match_t.upstream_host)
         end)
@@ -2955,13 +3169,13 @@ describe("Router", function()
           local router = assert(Router.new(use_case_routes))
           local _ngx = mock_ngx("GET", "/nohost", { host = "domain1.com" })
           router._set_ngx(_ngx)
-          local match_t = router.exec()
+          local match_t = router:exec()
           assert.same(use_case_routes[1].route, match_t.route)
           assert.equal("domain1.com", match_t.upstream_host)
 
           _ngx = mock_ngx("GET", "/nohost", { host = "domain2.com" })
           router._set_ngx(_ngx)
-          match_t = router.exec()
+          match_t = router:exec()
           assert.same(use_case_routes[1].route, match_t.route)
           assert.equal("domain2.com", match_t.upstream_host)
         end)
@@ -2973,7 +3187,7 @@ describe("Router", function()
         it("does not change the target upstream", function()
           local _ngx = mock_ngx("GET", "/", { host = host })
           router._set_ngx(_ngx)
-          local match_t = router.exec()
+          local match_t = router:exec()
           assert.same(use_case_routes[2].route, match_t.route)
           assert.equal("example.org", match_t.upstream_url_t.host)
         end)
@@ -2981,7 +3195,7 @@ describe("Router", function()
         it("does not set the host_header", function()
           local _ngx = mock_ngx("GET", "/", { host = host })
           router._set_ngx(_ngx)
-          local match_t = router.exec()
+          local match_t = router:exec()
           assert.same(use_case_routes[2].route, match_t.route)
           assert.is_nil(match_t.upstream_host)
         end)
@@ -3027,7 +3241,7 @@ describe("Router", function()
         it("uses the request's Host header", function()
           local _ngx = mock_ngx("GET", "/", { host = host })
           router._set_ngx(_ngx)
-          local match_t = router.exec()
+          local match_t = router:exec()
           assert.same(use_case_routes[1].route, match_t.route)
           assert.equal(host, match_t.upstream_host)
           assert.equal("grpc", match_t.service.protocol)
@@ -3036,7 +3250,7 @@ describe("Router", function()
         it("uses the request's Host header incl. port", function()
           local _ngx = mock_ngx("GET", "/", { host = host .. ":123" })
           router._set_ngx(_ngx)
-          local match_t = router.exec()
+          local match_t = router:exec()
           assert.same(use_case_routes[1].route, match_t.route)
           assert.equal(host .. ":123", match_t.upstream_host)
           assert.equal("grpc", match_t.service.protocol)
@@ -3045,7 +3259,7 @@ describe("Router", function()
         it("does not change the target upstream", function()
           local _ngx = mock_ngx("GET", "/", { host = host })
           router._set_ngx(_ngx)
-          local match_t = router.exec()
+          local match_t = router:exec()
           assert.same(use_case_routes[1].route, match_t.route)
           assert.equal("example.org", match_t.upstream_url_t.host)
           assert.equal("grpc", match_t.service.protocol)
@@ -3070,7 +3284,7 @@ describe("Router", function()
           local router = assert(Router.new(use_case_routes))
           local _ngx = mock_ngx("GET", "/foo", { host = "preserve.com" })
           router._set_ngx(_ngx)
-          local match_t = router.exec()
+          local match_t = router:exec()
           assert.same(use_case_routes[1].route, match_t.route)
           assert.equal("preserve.com", match_t.upstream_host)
           assert.equal("grpc", match_t.service.protocol)
@@ -3100,14 +3314,14 @@ describe("Router", function()
           local router = assert(Router.new(use_case_routes))
           local _ngx = mock_ngx("GET", "/nohost", { host = "domain1.com" })
           router._set_ngx(_ngx)
-          local match_t = router.exec()
+          local match_t = router:exec()
           assert.same(use_case_routes[1].route, match_t.route)
           assert.equal("domain1.com", match_t.upstream_host)
           assert.equal("grpc", match_t.service.protocol)
 
           _ngx = mock_ngx("GET", "/nohost", { host = "domain2.com" })
           router._set_ngx(_ngx)
-          match_t = router.exec()
+          match_t = router:exec()
           assert.same(use_case_routes[1].route, match_t.route)
           assert.equal("domain2.com", match_t.upstream_host)
           assert.equal("grpc", match_t.service.protocol)
@@ -3120,7 +3334,7 @@ describe("Router", function()
         it("does not change the target upstream", function()
           local _ngx = mock_ngx("GET", "/", { host = host })
           router._set_ngx(_ngx)
-          local match_t = router.exec()
+          local match_t = router:exec()
           assert.same(use_case_routes[2].route, match_t.route)
           assert.equal("example.org", match_t.upstream_url_t.host)
           assert.equal("grpc", match_t.service.protocol)
@@ -3129,7 +3343,7 @@ describe("Router", function()
         it("does not set the host_header", function()
           local _ngx = mock_ngx("GET", "/", { host = host })
           router._set_ngx(_ngx)
-          local match_t = router.exec()
+          local match_t = router:exec()
           assert.same(use_case_routes[2].route, match_t.route)
           assert.is_nil(match_t.upstream_host)
           assert.equal("grpc", match_t.service.protocol)
@@ -3174,7 +3388,7 @@ describe("Router", function()
             local router = assert(Router.new(use_case_routes) )
             local _ngx = mock_ngx("GET", test.request_path, { host = "localbin-" .. i .. "-" .. j .. ".com" })
             router._set_ngx(_ngx)
-            local match_t = router.exec()
+            local match_t = router:exec()
             assert.same(use_case_routes[1].route, match_t.route)
             assert.same(test.service_path, match_t.upstream_url_t.path)
             assert.same(test.expected_path, match_t.upstream_uri)
@@ -3214,7 +3428,7 @@ describe("Router", function()
               local router = assert(Router.new(use_case_routes) )
               local _ngx = mock_ngx("GET", test.request_path, { host = "localbin-" .. i .. ".com" })
               router._set_ngx(_ngx)
-              local match_t = router.exec()
+              local match_t = router:exec()
               assert.same(use_case_routes[1].route, match_t.route)
               assert.same(test.service_path, match_t.upstream_url_t.path)
               assert.same(test.expected_path, match_t.upstream_uri)
@@ -3228,199 +3442,207 @@ describe("Router", function()
 
   describe("#stream context", function()
     describe("[sources]", function()
-      local use_case = {
-        -- plain
-        {
-          service = service,
-          route = {
-            sources = {
-              { ip = "127.0.0.1" },
-              { ip = "127.0.0.2" },
-            }
-          }
-        },
-        {
-          service = service,
-          route = {
-            sources = {
-              { port = 65001 },
-              { port = 65002 },
-            }
-          }
-        },
-        -- range
-        {
-          service = service,
-          route = {
-            sources = {
-              { ip = "127.168.0.0/8" },
-            }
-          }
-        },
-        -- ip + port
-        {
-          service = service,
-          route = {
-            sources = {
-              { ip = "127.0.0.1", port = 65001 },
-            }
-          }
-        },
-        {
-          service = service,
-          route = {
-            sources = {
-              { ip = "127.0.0.2", port = 65300 },
-              { ip = "127.168.0.0/16", port = 65301 },
-            }
-          }
-        },
-      }
+      local use_case, router
 
-      local router = assert(Router.new(use_case))
+      lazy_setup(function()
+        use_case = {
+          -- plain
+          {
+            service = service,
+            route = {
+              sources = {
+                { ip = "127.0.0.1" },
+                { ip = "127.0.0.2" },
+              }
+            }
+          },
+          {
+            service = service,
+            route = {
+              sources = {
+                { port = 65001 },
+                { port = 65002 },
+              }
+            }
+          },
+          -- range
+          {
+            service = service,
+            route = {
+              sources = {
+                { ip = "127.168.0.0/8" },
+              }
+            }
+          },
+          -- ip + port
+          {
+            service = service,
+            route = {
+              sources = {
+                { ip = "127.0.0.1", port = 65001 },
+              }
+            }
+          },
+          {
+            service = service,
+            route = {
+              sources = {
+                { ip = "127.0.0.2", port = 65300 },
+                { ip = "127.168.0.0/16", port = 65301 },
+              }
+            }
+          },
+        }
+
+        router = assert(Router.new(use_case))
+      end)
 
       it("[src_ip]", function()
-        local match_t = router.select(nil, nil, nil, "tcp", "127.0.0.1")
+        local match_t = router:select(nil, nil, nil, "tcp", "127.0.0.1")
         assert.truthy(match_t)
         assert.same(use_case[1].route, match_t.route)
 
-        match_t = router.select(nil, nil, nil, "tcp", "127.0.0.1")
+        match_t = router:select(nil, nil, nil, "tcp", "127.0.0.1")
         assert.truthy(match_t)
         assert.same(use_case[1].route, match_t.route)
       end)
 
       it("[src_port]", function()
-        local match_t = router.select(nil, nil, nil, "tcp", "127.0.0.3", 65001)
+        local match_t = router:select(nil, nil, nil, "tcp", "127.0.0.3", 65001)
         assert.truthy(match_t)
         assert.same(use_case[2].route, match_t.route)
       end)
 
       it("[src_ip] range match", function()
-        local match_t = router.select(nil, nil, nil, "tcp", "127.168.0.1")
+        local match_t = router:select(nil, nil, nil, "tcp", "127.168.0.1")
         assert.truthy(match_t)
         assert.same(use_case[3].route, match_t.route)
       end)
 
       it("[src_ip] + [src_port]", function()
-        local match_t = router.select(nil, nil, nil, "tcp", "127.0.0.1", 65001)
+        local match_t = router:select(nil, nil, nil, "tcp", "127.0.0.1", 65001)
         assert.truthy(match_t)
         assert.same(use_case[4].route, match_t.route)
       end)
 
       it("[src_ip] range match + [src_port]", function()
-        local match_t = router.select(nil, nil, nil, "tcp", "127.168.10.1", 65301)
+        local match_t = router:select(nil, nil, nil, "tcp", "127.168.10.1", 65301)
         assert.truthy(match_t)
         assert.same(use_case[5].route, match_t.route)
       end)
 
       it("[src_ip] no match", function()
-        local match_t = router.select(nil, nil, nil, "tcp", "10.0.0.1")
+        local match_t = router:select(nil, nil, nil, "tcp", "10.0.0.1")
         assert.falsy(match_t)
 
-        match_t = router.select(nil, nil, nil, "tcp", "10.0.0.2", 65301)
+        match_t = router:select(nil, nil, nil, "tcp", "10.0.0.2", 65301)
         assert.falsy(match_t)
       end)
     end)
 
 
     describe("[destinations]", function()
-      local use_case = {
-        -- plain
-        {
-          service = service,
-          route = {
-            destinations = {
-              { ip = "127.0.0.1" },
-              { ip = "127.0.0.2" },
-            }
-          }
-        },
-        {
-          service = service,
-          route = {
-            destinations = {
-              { port = 65001 },
-              { port = 65002 },
-            }
-          }
-        },
-        -- range
-        {
-          service = service,
-          route = {
-            destinations = {
-              { ip = "127.168.0.0/8" },
-            }
-          }
-        },
-        -- ip + port
-        {
-          service = service,
-          route = {
-            destinations = {
-              { ip = "127.0.0.1", port = 65001 },
-            }
-          }
-        },
-        {
-          service = service,
-          route = {
-            destinations = {
-              { ip = "127.0.0.2", port = 65300 },
-              { ip = "127.168.0.0/16", port = 65301 },
-            }
-          }
-        },
-      }
+      local use_case, router
 
-      local router = assert(Router.new(use_case))
+      lazy_setup(function()
+        use_case = {
+          -- plain
+          {
+            service = service,
+            route = {
+              destinations = {
+                { ip = "127.0.0.1" },
+                { ip = "127.0.0.2" },
+              }
+            }
+          },
+          {
+            service = service,
+            route = {
+              destinations = {
+                { port = 65001 },
+                { port = 65002 },
+              }
+            }
+          },
+          -- range
+          {
+            service = service,
+            route = {
+              destinations = {
+                { ip = "127.168.0.0/8" },
+              }
+            }
+          },
+          -- ip + port
+          {
+            service = service,
+            route = {
+              destinations = {
+                { ip = "127.0.0.1", port = 65001 },
+              }
+            }
+          },
+          {
+            service = service,
+            route = {
+              destinations = {
+                { ip = "127.0.0.2", port = 65300 },
+                { ip = "127.168.0.0/16", port = 65301 },
+              }
+            }
+          },
+        }
+
+        router = assert(Router.new(use_case))
+      end)
 
       it("[dst_ip]", function()
-        local match_t = router.select(nil, nil, nil, "tcp", nil, nil,
+        local match_t = router:select(nil, nil, nil, "tcp", nil, nil,
                                       "127.0.0.1")
         assert.truthy(match_t)
         assert.same(use_case[1].route, match_t.route)
 
-        match_t = router.select(nil, nil, nil, "tcp", nil, nil,
+        match_t = router:select(nil, nil, nil, "tcp", nil, nil,
                                 "127.0.0.1")
         assert.truthy(match_t)
         assert.same(use_case[1].route, match_t.route)
       end)
 
       it("[dst_port]", function()
-        local match_t = router.select(nil, nil, nil, "tcp", nil, nil,
+        local match_t = router:select(nil, nil, nil, "tcp", nil, nil,
                                       "127.0.0.3", 65001)
         assert.truthy(match_t)
         assert.same(use_case[2].route, match_t.route)
       end)
 
       it("[dst_ip] range match", function()
-        local match_t = router.select(nil, nil, nil, "tcp", nil, nil,
+        local match_t = router:select(nil, nil, nil, "tcp", nil, nil,
                                       "127.168.0.1")
         assert.truthy(match_t)
         assert.same(use_case[3].route, match_t.route)
       end)
 
       it("[dst_ip] + [dst_port]", function()
-        local match_t = router.select(nil, nil, nil, "tcp", nil, nil,
+        local match_t = router:select(nil, nil, nil, "tcp", nil, nil,
                                       "127.0.0.1", 65001)
         assert.truthy(match_t)
         assert.same(use_case[4].route, match_t.route)
       end)
 
       it("[dst_ip] range match + [dst_port]", function()
-        local match_t = router.select(nil, nil, nil, "tcp", nil, nil,
+        local match_t = router:select(nil, nil, nil, "tcp", nil, nil,
                                       "127.168.10.1", 65301)
         assert.truthy(match_t)
         assert.same(use_case[5].route, match_t.route)
       end)
 
       it("[dst_ip] no match", function()
-        local match_t = router.select(nil, nil, nil, "tcp", nil, nil,
+        local match_t = router:select(nil, nil, nil, "tcp", nil, nil,
                                       "10.0.0.1")
         assert.falsy(match_t)
 
-        match_t = router.select(nil, nil, nil, "tcp", nil, nil,
+        match_t = router:select(nil, nil, nil, "tcp", nil, nil,
                                 "10.0.0.2", 65301)
         assert.falsy(match_t)
       end)
@@ -3428,77 +3650,81 @@ describe("Router", function()
 
 
     describe("[snis]", function()
-      local use_case = {
-        {
-          service = service,
-          route = {
-            snis = { "www.example.org" }
-          }
-        },
-        -- see #6425
-        {
-          service = service,
-          route   = {
-            hosts = {
-              "sni.example.com",
-            },
-            protocols = {
-              "http", "https",
-            },
-            snis = {
-              "sni.example.com",
-            },
-          },
-        },
-        {
-          service = service,
-          route   = {
-            hosts = {
-              "sni.example.com",
-            },
-            protocols = {
-              "http",
-            },
-          },
-        },
-      }
+      local use_case, use_case_ignore_sni, router, router_ignore_sni
 
-      local use_case_ignore_sni = {
-        -- see #6425
-        {
-          service = service,
-          route   = {
-            hosts = {
-              "sni.example.com",
-            },
-            protocols = {
-              "http", "https",
-            },
-            snis = {
-              "sni.example.com",
+      lazy_setup(function()
+        use_case = {
+          {
+            service = service,
+            route = {
+              snis = { "www.example.org" }
+            }
+          },
+          -- see #6425
+          {
+            service = service,
+            route   = {
+              hosts = {
+                "sni.example.com",
+              },
+              protocols = {
+                "http", "https",
+              },
+              snis = {
+                "sni.example.com",
+              },
             },
           },
-        },
-      }
+          {
+            service = service,
+            route   = {
+              hosts = {
+                "sni.example.com",
+              },
+              protocols = {
+                "http",
+              },
+            },
+          },
+        }
 
-      local router = assert(Router.new(use_case))
-      local router_ignore_sni = assert(Router.new(use_case_ignore_sni))
+        use_case_ignore_sni = {
+          -- see #6425
+          {
+            service = service,
+            route   = {
+              hosts = {
+                "sni.example.com",
+              },
+              protocols = {
+                "http", "https",
+              },
+              snis = {
+                "sni.example.com",
+              },
+            },
+          },
+        }
+
+        router = assert(Router.new(use_case))
+        router_ignore_sni = assert(Router.new(use_case_ignore_sni))
+      end)
 
       it("[sni]", function()
-        local match_t = router.select(nil, nil, nil, "tcp", nil, nil, nil, nil,
+        local match_t = router:select(nil, nil, nil, "tcp", nil, nil, nil, nil,
                                       "www.example.org")
         assert.truthy(match_t)
         assert.same(use_case[1].route, match_t.route)
       end)
 
       it("[sni] is ignored for http request without shadowing routes with `protocols={'http'}`. Fixes #6425", function()
-        local match_t = router_ignore_sni.select(nil, nil, "sni.example.com",
+        local match_t = router_ignore_sni:select(nil, nil, "sni.example.com",
                                                  "http", nil, nil, nil, nil,
                                                  nil)
         assert.truthy(match_t)
         assert.same(use_case_ignore_sni[1].route, match_t.route)
 
-        match_t = router.select(nil, nil, "sni.example.com",
+        match_t = router:select(nil, nil, "sni.example.com",
                                 "http", nil, nil, nil, nil,
                                 nil)
         assert.truthy(match_t)
@@ -3535,12 +3761,12 @@ describe("Router", function()
 
       local router = assert(Router.new(use_case))
 
-      local match_t = router.select(nil, nil, nil, "tcp", "127.0.0.1", nil,
+      local match_t = router:select(nil, nil, nil, "tcp", "127.0.0.1", nil,
                                     nil, nil, "www.example.org")
       assert.truthy(match_t)
       assert.same(use_case[1].route, match_t.route)
 
-      match_t = router.select(nil, nil, nil, "tcp", nil, nil,
+      match_t = router:select(nil, nil, nil, "tcp", nil, nil,
                               "172.168.0.1", nil, "www.example.org")
       assert.truthy(match_t)
       assert.same(use_case[1].route, match_t.route)
@@ -3569,7 +3795,7 @@ describe("Router", function()
 
       local router = assert(Router.new(use_case))
 
-      local match_t = router.select(nil, nil, nil, "tcp", "127.0.0.1", nil,
+      local match_t = router:select(nil, nil, nil, "tcp", "127.0.0.1", nil,
                                     "172.168.0.1", nil, "www.example.org")
       assert.truthy(match_t)
       assert.same(use_case[2].route, match_t.route)
@@ -3578,49 +3804,53 @@ describe("Router", function()
 end)
 
 describe("[both regex and prefix with regex_priority]", function()
-  local use_case = {
-    -- regex
-    {
-      service = service,
-      route   = {
-        paths = {
-          "/.*"
-        },
-        hosts = {
-          "domain-1.org",
-        },
-      },
-    },
-    -- prefix
-    {
-      service = service,
-      route   = {
-        paths = {
-          "/"
-        },
-        hosts = {
-          "domain-2.org",
-        },
-        regex_priority = 5
-      },
-    },
-    {
-      service = service,
-      route   = {
-        paths = {
-          "/v1"
-        },
-        hosts = {
-          "domain-2.org",
-        },
-      },
-    },
-  }
+  local use_case, router
 
-  local router = assert(Router.new(use_case))
+  lazy_setup(function()
+    use_case = {
+      -- regex
+      {
+        service = service,
+        route   = {
+          paths = {
+            "/.*"
+          },
+          hosts = {
+            "domain-1.org",
+          },
+        },
+      },
+      -- prefix
+      {
+        service = service,
+        route   = {
+          paths = {
+            "/"
+          },
+          hosts = {
+            "domain-2.org",
+          },
+          regex_priority = 5
+        },
+      },
+      {
+        service = service,
+        route   = {
+          paths = {
+            "/v1"
+          },
+          hosts = {
+            "domain-2.org",
+          },
+        },
+      },
+    }
+
+    router = assert(Router.new(use_case))
+  end)
 
   it("[prefix matching ignore regex_priority]", function()
-    local match_t = router.select("GET", "/v1", "domain-2.org")
+    local match_t = router:select("GET", "/v1", "domain-2.org")
     assert.truthy(match_t)
     assert.same(use_case[3].route, match_t.route)
   end)
