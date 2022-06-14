@@ -4,22 +4,90 @@ local _MT = { __index = _M, }
 local schema = require("resty.router.schema")
 local router = require("resty.router.router")
 local context = require("resty.router.context")
+local constants = require("kong.constants")
 local bit = require("bit")
 local ffi = require("ffi")
 
 
 local tb_clear = require("table.clear")
 local re_find = ngx.re.find
+local re_match = ngx.re.match
 local get_method = ngx.req.get_method
 local server_name = require("ngx.ssl").server_name
 local normalize = require("kong.tools.uri").normalize
+local hostname_type = require("kong.tools.utils").hostname_type
 local find = string.find
 local lower = string.lower
+local byte = string.byte
+local sub = string.sub
 local ffi_new = ffi.new
 local max = math.max
 local split_port = require("kong.router.traditional").split_port
 local bor, band, lshift, rshift = bit.bor, bit.band, bit.lshift, bit.rshift
 local tb_size = require("pl.tablex").size
+local header        = ngx.header
+local var           = ngx.var
+local ngx_log       = ngx.log
+local ERR           = ngx.ERR
+local get_method    = ngx.req.get_method
+local get_headers   = ngx.req.get_headers
+local is_http = ngx.config.subsystem == "http"
+
+
+
+local SLASH         = byte("/")
+
+
+function _M._set_ngx(mock_ngx)
+  if type(mock_ngx) ~= "table" then
+    return
+  end
+
+  if mock_ngx.header then
+    header = mock_ngx.header
+  end
+
+  if mock_ngx.var then
+    var = mock_ngx.var
+  end
+
+  if mock_ngx.log then
+    ngx_log = mock_ngx.log
+  end
+
+  if mock_ngx.ERR then
+    ERR = mock_ngx.ERR
+  end
+
+  if type(mock_ngx.req) == "table" then
+    if mock_ngx.req.get_method then
+      get_method = mock_ngx.req.get_method
+    end
+
+    if mock_ngx.req.get_headers then
+      get_headers = mock_ngx.req.get_headers
+    end
+  end
+
+  if type(mock_ngx.config) == "table" then
+    if mock_ngx.config.subsystem then
+      is_http = mock_ngx.config.subsystem == "http"
+    end
+  end
+
+  if type(mock_ngx.re) == "table" then
+    if mock_ngx.re.match then
+      re_match = mock_ngx.re.match
+    end
+
+    if mock_ngx.re.find then
+      re_find = mock_ngx.re.find
+    end
+  end
+end
+
+
+local protocol_subsystem = constants.PROTOCOLS_WITH_SUBSYSTEM
 
 
 local normalize_regex
@@ -156,7 +224,6 @@ local function get_atc(route)
     return re_find(path, [[[a-zA-Z0-9\.\-_~/%]*$]], "ajo") and "^=" or "~"
   end, route.paths, function(op, p)
     if op == "~" then
-      print(p)
       return normalize_regex(p):gsub("\\", "\\\\")
     end
 
@@ -265,7 +332,7 @@ local function route_priority(r)
 
   match_weight = lshift(ffi_new("uint64_t", match_weight), 61)
   headers_count = lshift(ffi_new("uint64_t", headers_count), 52)
-  local regex_priority = lshift(ffi_new("uint64_t", r.regex_priority or 0), 19)
+  local regex_priority = lshift(ffi_new("uint64_t", regex_url and r.regex_priority or 0), 19)
   local max_length = band(max_uri_length, 0x7FFFF)
 
   local priority =  bor(match_weight,
@@ -314,6 +381,27 @@ function _M.new(routes)
   end
 
   return router
+end
+
+
+local function sanitize_uri_postfix(uri_postfix)
+  if not uri_postfix or uri_postfix == "" then
+    return uri_postfix
+  end
+
+  if uri_postfix == "." or uri_postfix == ".." then
+    return ""
+  end
+
+  if sub(uri_postfix, 1, 2) == "./" then
+    return sub(uri_postfix, 3)
+  end
+
+  if sub(uri_postfix, 1, 3) == "../" then
+    return sub(uri_postfix, 4)
+  end
+
+  return uri_postfix
 end
 
 
@@ -393,13 +481,110 @@ function _M:select(req_method, req_uri, req_host, req_scheme,
 
   local uuid, matched_path, captures = c:get_result()
 
+  local service_protocol
+  local service_type
+  local service_host
+  local service_port
+  local service = self.services[uuid]
+  local matched_route = self.routes[uuid]
+
+  if service then
+    service_protocol = service.protocol
+    service_host = service.host
+    service_port = service.port
+  end
+
+  if service_protocol then
+    service_type = protocol_subsystem[service_protocol]
+  end
+
+  local service_hostname_type
+  if service_host then
+    service_hostname_type = hostname_type(service_host)
+  end
+
+  if not service_port then
+    if service_protocol == "https" then
+      service_port = 443
+    elseif service_protocol == "http" then
+      service_port = 80
+    end
+  end
+
+  local service_path
+  if service_type == "http" then
+    service_path = service and service.path or "/"
+  end
+
+  local request_prefix = matched_route.strip_path and matched_path or nil
+  local upstream_uri
+  local request_postfix = request_prefix and req_uri:sub(#matched_path + 1) or req_uri:sub(2, -1)
+  request_postfix = sanitize_uri_postfix(request_postfix) or ""
+  local upstream_base = service_path or "/"
+
+  if byte(upstream_base, -1) == SLASH then
+    -- ends with / and strip_path = true
+    if matched_route.strip_path then
+      if request_postfix == "" then
+        if upstream_base == "/" then
+          upstream_uri = "/"
+        elseif byte(req_uri, -1) == SLASH then
+          upstream_uri = upstream_base
+        else
+          upstream_uri = sub(upstream_base, 1, -2)
+        end
+      elseif byte(request_postfix, 1, 1) == SLASH then
+        -- double "/", so drop the first
+        upstream_uri = sub(upstream_base, 1, -2) .. request_postfix
+      else -- ends with / and strip_path = true, no double slash
+        upstream_uri = upstream_base .. request_postfix
+      end
+
+    else -- ends with / and strip_path = false
+      -- we retain the incoming path, just prefix it with the upstream
+      -- path, but skip the initial slash
+      upstream_uri = upstream_base .. sub(req_uri, 2)
+    end
+
+  else -- does not end with /
+    -- does not end with / and strip_path = true
+    if matched_route.strip_path then
+      if request_postfix == "" then
+        if #req_uri > 1 and byte(req_uri, -1) == SLASH then
+          upstream_uri = upstream_base .. "/"
+        else
+          upstream_uri = upstream_base
+        end
+      elseif byte(request_postfix, 1, 1) == SLASH then
+        upstream_uri = upstream_base .. request_postfix
+      else
+        upstream_uri = upstream_base .. "/" .. request_postfix
+      end
+
+    else -- does not end with / and strip_path = false
+      if req_uri == "/" then
+        upstream_uri = upstream_base
+      else
+        upstream_uri = upstream_base .. req_uri
+      end
+    end
+  end
+
   return {
-    route           = self.routes[uuid],
-    service         = self.services[uuid],
-    prefix          = matched_path,
+    route           = matched_route,
+    service         = service,
+    prefix          = request_prefix,
     matches = {
       uri_captures = (captures and captures[1]) and captures or nil,
-    }
+    },
+    upstream_url_t = {
+      type = service.protocol,
+      host = service.host,
+      port = service_port,
+    },
+    upstream_scheme = service.protocol,
+    upstream_uri    = upstream_uri,
+    upstream_host   = matched_route.preserve_host and req_host or nil,
   }
 end
 
@@ -411,17 +596,13 @@ function _M:exec(ctx)
   local req_scheme = ctx and ctx.scheme or var.scheme
   local sni = server_name()
 
-  local headers
-  if match_headers then
-    local err
-    headers, err = get_headers(MAX_REQ_HEADERS)
-    if err == "truncated" then
-      log(WARN, "retrieved ", MAX_REQ_HEADERS, " headers for evaluation ",
-                "(max) but request had more; other headers will be ignored")
-    end
-
-    headers["host"] = nil
+  local headers, err = get_headers(MAX_REQ_HEADERS)
+  if err == "truncated" then
+    log(WARN, "retrieved ", MAX_REQ_HEADERS, " headers for evaluation ",
+              "(max) but request had more; other headers will be ignored")
   end
+
+  headers["host"] = nil
 
   local idx = find(req_uri, "?", 2, true)
   if idx then
@@ -431,6 +612,7 @@ function _M:exec(ctx)
   req_uri = normalize(req_uri, true)
 
   local match_t = self:select(req_method, req_uri, req_host, req_scheme,
+                              nil, nil, nil, nil,
                               sni, headers)
   if not match_t then
     return
