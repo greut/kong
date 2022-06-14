@@ -193,6 +193,11 @@ local function get_atc(route)
     table.insert(out, gen)
   end
 
+  local gen = gen_for_field("tls.sni", "==", route.snis)
+  if gen then
+    table.insert(out, gen)
+  end
+
   local gen = gen_for_field("http.host", function(host)
     if host:sub(1, 1) == "*" then
       -- postfix matching
@@ -367,14 +372,14 @@ function _M.new(routes)
     router = inst,
     routes = {},
     services = {},
-    fields = nil,
+    fields = {},
   }, _MT)
 
   for _, r in ipairs(routes) do
     router.routes[r.route.id] = r.route
     router.services[r.route.id] = r.service
 
-    get_atc(r.route)
+    print(get_atc(r.route))
     assert(inst:add_matcher(route_priority(r.route), r.route.id, get_atc(r.route)))
 
     router.fields = inst:get_fields()
@@ -578,11 +583,11 @@ function _M:select(req_method, req_uri, req_host, req_scheme,
       uri_captures = (captures and captures[1]) and captures or nil,
     },
     upstream_url_t = {
-      type = service.protocol,
-      host = service.host,
+      type = service_protocol,
+      host = service_host,
       port = service_port,
     },
-    upstream_scheme = service.protocol,
+    upstream_scheme = service_protocol,
     upstream_uri    = upstream_uri,
     upstream_host   = matched_route.preserve_host and req_host or nil,
   }
