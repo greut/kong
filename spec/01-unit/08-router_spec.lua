@@ -1508,7 +1508,7 @@ for _, flavor in ipairs({ "traditional", "traditional_compatible" }) do
       end)
 
       describe("[headers]", function()
-        it_trad_only("evaluates Routes with more [headers] first", function()
+        it("evaluates Routes with more [headers] first", function()
           local use_case = {
             {
               service = service,

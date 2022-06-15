@@ -243,7 +243,7 @@ local function get_atc(route)
     for h, v in pairs(route.headers) do
       local single_header = {}
       for _, ind in ipairs(v) do
-        local name = "http.headers." .. h:gsub("-", "_"):lower()
+        local name = "any(http.headers." .. h:gsub("-", "_"):lower() .. ")"
         local value = ind
         local op = "=="
         if ind:sub(1, 2) == "~*" then
@@ -471,8 +471,9 @@ function _M:select(req_method, req_uri, req_host, req_scheme,
           assert(c:add_value(field, v:lower()))
 
         else
-          -- TODO: support array of values
-          assert(c:add_value(field, v[1]:lower()))
+          for _, v in ipairs(v) do
+            assert(c:add_value(field, v:lower()))
+          end
         end
       end
     end
