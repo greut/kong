@@ -379,7 +379,6 @@ function _M.new(routes)
     router.routes[r.route.id] = r.route
     router.services[r.route.id] = r.service
 
-    print(get_atc(r.route))
     assert(inst:add_matcher(route_priority(r.route), r.route.id, get_atc(r.route)))
 
     router.fields = inst:get_fields()
@@ -484,7 +483,7 @@ function _M:select(req_method, req_uri, req_host, req_scheme,
     return nil
   end
 
-  local uuid, matched_path, captures = c:get_result()
+  local uuid, matched_path, captures = c:get_result("http.path")
 
   local service_protocol
   local service_type
