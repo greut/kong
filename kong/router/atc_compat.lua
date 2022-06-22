@@ -583,7 +583,7 @@ function _M:select(req_method, req_uri, req_host, req_scheme,
       uri_captures = (captures and captures[1]) and captures or nil,
     },
     upstream_url_t = {
-      type = service_protocol,
+      type = service_hostname_type,
       host = service_host,
       port = service_port,
     },
