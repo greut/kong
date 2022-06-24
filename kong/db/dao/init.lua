@@ -895,6 +895,7 @@ local function generate_foreign_key_methods(schema)
         rows_affected, err_t = self.strategy:delete_by_field(name, unique_value, options)
         if err_t then
           return nil, tostring(err_t), err_t
+
         elseif not rows_affected then
           return nil
         end
@@ -1283,6 +1284,7 @@ function DAO:delete(primary_key, options)
   rows_affected, err_t = self.strategy:delete(primary_key, options)
   if err_t then
     return nil, tostring(err_t), err_t
+
   elseif not rows_affected then
     return nil
   end
