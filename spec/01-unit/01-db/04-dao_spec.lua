@@ -74,6 +74,14 @@ local cascade_delete_schema = {
   },
 }
 
+local concurrent_delete_schema = {
+  name = "Foo",
+  primary_key = { "id" },
+  fields = {
+    { id = { type = "number" }, },
+  }
+}
+
 local mock_db = {}
 
 
@@ -499,6 +507,48 @@ describe("DAO", function()
 
       local _, err = parent_dao:delete({ a = 42 })
       assert.falsy(err)
+    end)
+    
+    it("concurrent delete calls should only yield one success", function ()
+      local schema = assert(Schema.new(concurrent_delete_schema))
+
+      local deleted = false
+      local strategy = {
+        select = function()
+          return { id = 1 }
+        end,
+        delete = function(pk, _)
+          if not deleted then
+            deleted = true
+            return true
+          end
+
+          return nil
+        end
+      }
+
+      local dao = DAO.new(mock_db, schema, strategy, errors)
+
+      local results = {}
+      local co = {}
+      for c = 1, 10 do
+        co[c] = coroutine.create(function ()
+          local rows_affected = dao:delete({ id = 1 })
+          results[c] = rows_affected
+        end)
+      end
+
+      for c = 1, 10 do
+        coroutine.resume(co[c])
+      end
+
+      local count = 0
+      for c = 1, 10 do
+        if results[c] then
+          count = count + 1
+        end
+      end
+      assert.equals(1, count)
     end)
   end)
 
